@@ -7,19 +7,19 @@
 <TopAppBar color="secondary" dense style="min-width:9.5rem;" variant="short">
 	<Row>
 		<Section align="start">
-			<TopAppBarTitle>Repair Calculator</TopAppBarTitle>
+			<TopAppBarTitle>Смета ремонта</TopAppBarTitle>
 		</Section>
 		<Section align="end" toolbar>
-			<a class="toolbar-link" href="/">Calculator</a>
-			<a class="toolbar-link" href="/about">About</a>
+			<a class="toolbar-link" href="/">Калькулятор</a>
+			<a class="toolbar-link" href="/about">О проекте</a>
 		</Section>
 	</Row>
 </TopAppBar>
 
 <AppContent class="app-content">
 	<header>
-		<h1>Калькулятор ремонта</h1>
-		<h2>Параметры, площади, работы, смета и материалы в одном потоке</h2>
+		<h1>Мини-калькулятор ремонта</h1>
+		<h2>Клиент заполняет объект, получает предварительную смету и оставляет данные для замера</h2>
 	</header>
 	<span class="theme-toggle">
 		<DarkModeToggle />

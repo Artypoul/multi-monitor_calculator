@@ -51,11 +51,26 @@
 		value: string;
 	};
 
+	type ContactPreference = 'phone' | 'whatsapp' | 'telegram';
+
+	type ClientDraft = {
+		name: string;
+		phone: string;
+		address: string;
+		preferredContact: ContactPreference;
+		comment: string;
+	};
+
 	const HUMAN_ERROR = 'Не удалось рассчитать, попробуйте позже или оставьте заявку';
 	const SEPARATE_BATHROOM_MESSAGE =
 		'Для раздельного санузла предварительную смету лучше уточнить после заявки. Площади уже посчитаны, точная смета после замера.';
 
-	let activeStepId: FlowStepId = 'parameters';
+	let activeStepId: FlowStepId = 'client';
+	let clientName = '';
+	let clientPhone = '';
+	let objectAddress = '';
+	let preferredContact: ContactPreference = 'phone';
+	let clientComment = '';
 	let apartmentType: ApartmentType = 'studio';
 	let totalArea = 40;
 	let ceilingHeight = 2.7;
@@ -70,7 +85,17 @@
 	let isSubmitting = false;
 	let estimateResult: EstimateResult | null = null;
 	let leadNoteVisible = false;
+	let leadPrepared = false;
+	let leadMessage = '';
 
+	$: clientDraft = {
+		name: clientName.trim(),
+		phone: clientPhone.trim(),
+		address: objectAddress.trim(),
+		preferredContact,
+		comment: clientComment.trim(),
+	};
+	$: clientSummaryRows = buildClientSummaryRows(clientDraft);
 	$: flowInput = {
 		apartmentType,
 		totalArea,
@@ -117,6 +142,28 @@
 	$: bathroomPrimaryLabel = bathroomType === 'separate' ? 'Туалет, м²' : 'Санузел, м²';
 	$: isSeparateEstimateBlocked =
 		bathroomType === 'separate' && estimateMessage === SEPARATE_BATHROOM_MESSAGE;
+	$: leadReady = Boolean(clientDraft.name && clientDraft.phone);
+
+	function buildClientSummaryRows(client: ClientDraft): SummaryRow[] {
+		return [
+			{ label: 'Клиент', value: client.name || 'Не указано' },
+			{ label: 'Телефон', value: client.phone || 'Не указано' },
+			{ label: 'Адрес', value: client.address || 'Можно уточнить позже' },
+			{ label: 'Связь', value: contactPreferenceLabel(client.preferredContact) },
+		];
+	}
+
+	function contactPreferenceLabel(value: ContactPreference): string {
+		if (value === 'whatsapp') {
+			return 'WhatsApp';
+		}
+
+		if (value === 'telegram') {
+			return 'Telegram';
+		}
+
+		return 'Звонок';
+	}
 
 	function syncSelectionsWithArea(calculation: AreaCalculation) {
 		if (!hasInitializedSelections) {
@@ -162,11 +209,17 @@
 	function invalidateEstimate() {
 		estimateResult = null;
 		estimateMessage = '';
+		resetPreparedLead();
+	}
+
+	function resetPreparedLead() {
 		leadNoteVisible = false;
+		leadPrepared = false;
+		leadMessage = '';
 	}
 
 	function canOpenStep(stepId: FlowStepId): boolean {
-		if (stepId === 'parameters') {
+		if (stepId === 'client' || stepId === 'parameters') {
 			return true;
 		}
 
@@ -188,6 +241,11 @@
 
 		activeStepId = stepId;
 		areaMessage = '';
+	}
+
+	function goToParameters() {
+		resetPreparedLead();
+		activeStepId = 'parameters';
 	}
 
 	function showAreas() {
@@ -277,13 +335,15 @@
 			estimateResult = null;
 			estimateMessage = SEPARATE_BATHROOM_MESSAGE;
 			leadNoteVisible = true;
+			leadPrepared = false;
+			leadMessage = '';
 			activeStepId = 'estimate';
 			return;
 		}
 
 		estimateMessage = '';
 		estimateResult = null;
-		leadNoteVisible = false;
+		resetPreparedLead();
 		isSubmitting = true;
 		activeStepId = 'estimate';
 
@@ -317,6 +377,28 @@
 		} finally {
 			isSubmitting = false;
 		}
+	}
+
+	function prepareLead() {
+		leadNoteVisible = true;
+		leadPrepared = false;
+
+		if (!clientDraft.name) {
+			leadMessage = 'Укажите имя клиента, чтобы подготовить заявку';
+			activeStepId = 'client';
+			return;
+		}
+
+		if (!clientDraft.phone) {
+			leadMessage = 'Укажите телефон клиента, чтобы подготовить заявку';
+			activeStepId = 'client';
+			return;
+		}
+
+		leadPrepared = true;
+		leadMessage =
+			'Заявка подготовлена. Менеджер сможет взять контакты, адрес и рассчитанную смету с этого экрана.';
+		activeStepId = 'estimate';
 	}
 
 	function readInputNumber(event: Event): number {
@@ -380,10 +462,10 @@
 			<Content>
 				<div class="hero-row">
 					<div class="hero-copy">
-						<h3>Санузел под плитку</h3>
+						<h3>Предварительный расчет санузла</h3>
 						<p>
-							Сценарий перенесён в интерфейс проекта: вводим параметры квартиры, считаем площади,
-							собираем работы и получаем предварительную смету через готовый headless-расчёт.
+							Клиент заполняет данные объекта, получает смету по пакету "Санузел под плитку" и
+							оставляет данные для точного расчета после замера.
 						</p>
 					</div>
 					<div class="hero-meta">
@@ -416,10 +498,86 @@
 		<div class="workspace">
 			<Paper class="flow-panel">
 				<Content>
-					{#if activeStepId === 'parameters'}
+					{#if activeStepId === 'client'}
+						<div class="step-heading">
+							<h3>Шаг {stepNumber('client')}. Данные клиента и объекта</h3>
+							<p>
+								Заполните контакты и адрес, чтобы расчет можно было передать менеджеру без переписки
+								заново.
+							</p>
+						</div>
+
+						<div class="field-grid">
+							<TextField
+								bind:value={clientName}
+								input$autocomplete="name"
+								label="Имя клиента"
+								on:input={resetPreparedLead}
+								required
+								style="width:100%;"
+								variant="filled"
+							/>
+
+							<TextField
+								bind:value={clientPhone}
+								input$autocomplete="tel"
+								label="Телефон"
+								on:input={resetPreparedLead}
+								required
+								style="width:100%;"
+								type="tel"
+								variant="filled"
+							/>
+
+							<TextField
+								bind:value={objectAddress}
+								class="field-wide"
+								input$autocomplete="street-address"
+								label="Адрес объекта"
+								on:input={resetPreparedLead}
+								style="width:100%;"
+								variant="filled"
+							/>
+
+							<Select
+								bind:value={preferredContact}
+								label="Как удобнее связаться"
+								on:MDCSelect:change={resetPreparedLead}
+								style="width:100%;"
+								variant="filled"
+							>
+								<Option value="phone">Звонок</Option>
+								<Option value="whatsapp">WhatsApp</Option>
+								<Option value="telegram">Telegram</Option>
+							</Select>
+
+							<TextField
+								bind:value={clientComment}
+								class="field-wide"
+								label="Комментарий"
+								on:input={resetPreparedLead}
+								style="width:100%;"
+								variant="filled"
+							/>
+						</div>
+
+						{#if leadMessage && !leadPrepared}
+							<p class="form-message error" role="alert">{leadMessage}</p>
+						{/if}
+
+						<div class="actions-row">
+							<Button variant="raised" on:click={goToParameters}>
+								<Icon class="material-icons">arrow_forward</Icon>
+								<Label>Перейти к расчету</Label>
+							</Button>
+						</div>
+					{:else if activeStepId === 'parameters'}
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('parameters')}. Параметры квартиры</h3>
-							<p>Поля и сценарий собраны в material-форму проекта, без технических id.</p>
+							<p>
+								Укажите площадь квартиры, высоту потолка и параметры санузла для предварительного
+								расчета.
+							</p>
 						</div>
 
 						<div class="scenario-paper">
@@ -525,7 +683,10 @@
 					{:else if activeStepId === 'areas'}
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('areas')}. Площади</h3>
-							<p>Формулы взяты из оригинального сценария и показаны в привычной карточной сетке.</p>
+							<p>
+								Проверьте расчетные площади. По ним считается предварительная стоимость работ и
+								материалов.
+							</p>
 						</div>
 
 						{#if areaCalculation}
@@ -606,8 +767,8 @@
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('works')}. Работы и материалы</h3>
 							<p>
-								Пакет санузла уже выбран. Остальные позиции можно отмечать для графика и списков
-								материалов в рамках этого сценария.
+								Пакет санузла уже выбран. Дополнительные позиции помогают показать график и состав
+								работ для обсуждения с менеджером.
 							</p>
 						</div>
 
@@ -765,7 +926,7 @@
 							{/if}
 
 							<div class="actions-row">
-								<Button variant="raised" on:click={() => (leadNoteVisible = true)}>
+								<Button variant="raised" on:click={prepareLead}>
 									<Icon class="material-icons">campaign</Icon>
 									<Label>Оставить заявку</Label>
 								</Button>
@@ -773,20 +934,13 @@
 									<Label>Посмотреть график</Label>
 								</Button>
 							</div>
-
-							{#if leadNoteVisible}
-								<p class="form-message info">
-									Форма заявки подключается отдельно. Сейчас можно сохранить расчет и передать его
-									менеджеру.
-								</p>
-							{/if}
 						{:else}
 							<Paper class="state-paper">
 								<Content>
 									{#if isSeparateEstimateBlocked}
 										<h4>Нужна заявка для уточнения</h4>
 										<p>{SEPARATE_BATHROOM_MESSAGE}</p>
-										<Button variant="raised" on:click={() => (leadNoteVisible = true)}>
+										<Button variant="raised" on:click={prepareLead}>
 											<Label>Оставить заявку</Label>
 										</Button>
 									{:else}
@@ -800,13 +954,39 @@
 							</Paper>
 						{/if}
 
+						{#if leadNoteVisible}
+							{#if leadPrepared}
+								<Paper class="lead-paper">
+									<Content>
+										<div class="lead-header">
+											<h4>Заявка подготовлена</h4>
+											<p>{leadMessage}</p>
+										</div>
+										<div class="lead-grid">
+											{#each clientSummaryRows as row}
+												<div>
+													<small>{row.label}</small>
+													<strong>{row.value}</strong>
+												</div>
+											{/each}
+										</div>
+										{#if clientDraft.comment}
+											<p class="lead-comment">{clientDraft.comment}</p>
+										{/if}
+									</Content>
+								</Paper>
+							{:else if leadMessage}
+								<p class="form-message error" role="alert">{leadMessage}</p>
+							{/if}
+						{/if}
+
 						{#if estimateMessage && !isSeparateEstimateBlocked}
 							<p class="form-message error" role="alert">{estimateMessage}</p>
 						{/if}
 					{:else if activeStepId === 'schedule'}
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('schedule')}. График работ</h3>
-							<p>Предварительный порядок этапов по выбранному наполнению.</p>
+							<p>Ориентировочный порядок этапов по выбранному наполнению.</p>
 						</div>
 
 						{#if scheduleStages.length > 0}
@@ -846,7 +1026,7 @@
 					{:else if activeStepId === 'roughMaterials'}
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('roughMaterials')}. Черновые материалы</h3>
-							<p>Список основан на выбранных подготовительных и инженерных позициях.</p>
+							<p>Предварительный список по подготовительным и инженерным позициям.</p>
 						</div>
 
 						{#if materialsView.rough.length > 0}
@@ -873,7 +1053,7 @@
 					{:else if activeStepId === 'finishMaterials'}
 						<div class="step-heading">
 							<h3>Шаг {stepNumber('finishMaterials')}. Финишные материалы</h3>
-							<p>Плитка, покрытия, свет и другие чистовые позиции.</p>
+							<p>Плитка, покрытия, свет и другие чистовые позиции для обсуждения после замера.</p>
 						</div>
 
 						{#if materialsView.finish.length > 0}
@@ -903,6 +1083,21 @@
 
 			<Paper class="side-panel">
 				<Content>
+					<div class="side-section">
+						<h4>Клиент</h4>
+						<ul class="data-list">
+							{#each clientSummaryRows as row}
+								<li>
+									<span>{row.label}</span>
+									<strong>{row.value}</strong>
+								</li>
+							{/each}
+						</ul>
+						{#if !leadReady}
+							<p class="side-note">Имя и телефон нужны для заявки.</p>
+						{/if}
+					</div>
+
 					<div class="side-section">
 						<h4>Сценарий</h4>
 						<p>Санузел под плитку</p>
@@ -969,7 +1164,8 @@
 	:global(.metric-paper),
 	:global(.detail-paper),
 	:global(.category-paper),
-	:global(.state-paper) {
+	:global(.state-paper),
+	:global(.lead-paper) {
 		max-width: 100%;
 	}
 
@@ -1085,6 +1281,10 @@
 		gap: 1rem;
 	}
 
+	:global(.field-wide) {
+		grid-column: 1 / -1;
+	}
+
 	.actions-row {
 		display: flex;
 		flex-wrap: wrap;
@@ -1106,11 +1306,6 @@
 	.form-message.warn {
 		background: rgba(255, 193, 7, 0.16);
 		color: #7c5a00;
-	}
-
-	.form-message.info {
-		background: rgba(64, 179, 255, 0.12);
-		color: #155d8f;
 	}
 
 	.summary-grid {
@@ -1147,8 +1342,47 @@
 
 	:global(.detail-paper),
 	:global(.state-paper),
-	:global(.category-paper) {
+	:global(.category-paper),
+	:global(.lead-paper) {
 		padding: 0.3rem 0.4rem;
+	}
+
+	:global(.lead-paper) {
+		margin-top: 1rem;
+		border-left: 4px solid #db3801;
+	}
+
+	.lead-header {
+		margin-bottom: 1rem;
+	}
+
+	.lead-header h4,
+	.lead-header p,
+	.lead-comment {
+		margin-left: 0;
+		margin-right: 0;
+	}
+
+	.lead-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.75rem;
+	}
+
+	.lead-grid div {
+		background: rgba(103, 103, 120, 0.08);
+		padding: 0.75rem 0.9rem;
+	}
+
+	.lead-grid small {
+		display: block;
+		margin-bottom: 0.25rem;
+		color: rgba(0, 0, 0, 0.58);
+	}
+
+	.lead-comment {
+		margin-top: 1rem;
+		color: rgba(0, 0, 0, 0.68);
 	}
 
 	.detail-paper-wide {
@@ -1282,6 +1516,7 @@
 
 		.hero-row,
 		.field-grid,
+		.lead-grid,
 		.summary-grid,
 		.summary-grid--totals,
 		.detail-columns,

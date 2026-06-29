@@ -1,6 +1,7 @@
 export type ApartmentType = 'studio' | '1room' | '2room' | '3room' | '4room';
 export type BathroomType = 'combined' | 'separate';
 export type FlowStepId =
+	| 'client'
 	| 'parameters'
 	| 'areas'
 	| 'works'
@@ -137,6 +138,7 @@ export type CalculationResult =
 	  };
 
 export const FLOW_STEPS: FlowStep[] = [
+	{ id: 'client', label: 'Клиент' },
 	{ id: 'parameters', label: 'Параметры' },
 	{ id: 'areas', label: 'Площади' },
 	{ id: 'works', label: 'Работы' },
