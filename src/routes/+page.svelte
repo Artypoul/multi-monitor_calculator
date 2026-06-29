@@ -1,20 +1,13 @@
 <script lang="ts">
 	import Button, { Icon, Label } from '@smui/button';
-	import Checkbox from '@smui/checkbox';
-	import FormField from '@smui/form-field';
 	import Paper, { Content } from '@smui/paper';
 	import Select, { Option } from '@smui/select';
 	import TextField from '@smui/textfield';
 	import {
-		APARTMENT_TYPES,
-		BATHROOM_TILE_DEFAULT_OPTION_IDS,
-		FLOW_STEPS,
-		WORK_CATEGORIES,
 		buildMaterialsView,
 		buildSchedulePreview,
 		buildSelectedWorkOptions,
 		createBathroomTileDefaultSelections,
-		createSelection,
 		formatAreaValue,
 		formatQuantity,
 		getApartmentDefaults,
@@ -23,11 +16,8 @@
 		type ApartmentType,
 		type AreaCalculation,
 		type BathroomType,
-		type FlowStepId,
 		type SelectedWorkOption,
 		type SelectionState,
-		type WorkCategory,
-		type WorkOption,
 	} from '$lib/repairFlow';
 
 	type EstimateLine = {
@@ -52,6 +42,14 @@
 	};
 
 	type ContactPreference = 'phone' | 'whatsapp' | 'telegram';
+	type RepairZoneChoice = 'bathroom' | 'apartment' | 'room' | 'kitchen';
+
+	type RepairZoneOption = {
+		id: RepairZoneChoice;
+		label: string;
+		description: string;
+		quickEstimate: boolean;
+	};
 
 	type ClientDraft = {
 		name: string;
@@ -64,8 +62,34 @@
 	const HUMAN_ERROR = 'Не удалось рассчитать, попробуйте позже или оставьте заявку';
 	const SEPARATE_BATHROOM_MESSAGE =
 		'Для раздельного санузла предварительную смету лучше уточнить после заявки. Площади уже посчитаны, точная смета после замера.';
+	const REPAIR_ZONE_OPTIONS: RepairZoneOption[] = [
+		{
+			id: 'bathroom',
+			label: 'Санузел',
+			description: 'Быстрый расчет пакета под плитку',
+			quickEstimate: true,
+		},
+		{
+			id: 'apartment',
+			label: 'Вся квартира',
+			description: 'Расчет после уточнения состава работ',
+			quickEstimate: false,
+		},
+		{
+			id: 'room',
+			label: 'Комната',
+			description: 'Поможем собрать сценарий ремонта',
+			quickEstimate: false,
+		},
+		{
+			id: 'kitchen',
+			label: 'Кухня',
+			description: 'Уточним отделку и инженерные точки',
+			quickEstimate: false,
+		},
+	];
 
-	let activeStepId: FlowStepId = 'client';
+	let selectedRepairZone: RepairZoneChoice = 'bathroom';
 	let clientName = '';
 	let clientPhone = '';
 	let objectAddress = '';
@@ -123,7 +147,6 @@
 		syncSelectionsWithArea(areaCalculation);
 		lastAreaSignature = areaSignature;
 	}
-	$: activeStepIndex = FLOW_STEPS.findIndex((step) => step.id === activeStepId);
 	$: selectedOptions = buildSelectedWorkOptions(selections);
 	$: scheduleStages = buildSchedulePreview(selectedOptions, areaCalculation);
 	$: totalScheduleDays = scheduleStages.reduce((sum, stage) => sum + stage.days, 0);
@@ -140,9 +163,12 @@
 			    ]
 			  : [];
 	$: bathroomPrimaryLabel = bathroomType === 'separate' ? 'Туалет, м²' : 'Санузел, м²';
+	$: selectedRepairOption =
+		REPAIR_ZONE_OPTIONS.find((option) => option.id === selectedRepairZone) ??
+		REPAIR_ZONE_OPTIONS[0];
+	$: isBathroomFlow = selectedRepairZone === 'bathroom';
 	$: isSeparateEstimateBlocked =
 		bathroomType === 'separate' && estimateMessage === SEPARATE_BATHROOM_MESSAGE;
-	$: leadReady = Boolean(clientDraft.name && clientDraft.phone);
 
 	function buildClientSummaryRows(client: ClientDraft): SummaryRow[] {
 		return [
@@ -188,14 +214,6 @@
 		];
 	}
 
-	function applyApartmentDefaults() {
-		const defaults = getApartmentDefaults(apartmentType, bathroomType);
-		totalArea = defaults.totalArea;
-		bathroomPrimaryArea = defaults.primaryArea;
-		bathroomSecondaryArea = defaults.secondaryArea;
-		invalidateEstimate();
-	}
-
 	function handleBathroomTypeChange() {
 		const defaults = getApartmentDefaults(apartmentType, bathroomType);
 
@@ -218,116 +236,44 @@
 		leadMessage = '';
 	}
 
-	function canOpenStep(stepId: FlowStepId): boolean {
-		if (stepId === 'client' || stepId === 'parameters') {
-			return true;
-		}
-
-		if (!areaCalculation) {
-			return false;
-		}
-
-		if (stepId === 'schedule' || stepId === 'roughMaterials' || stepId === 'finishMaterials') {
-			return selectedOptions.length > 0;
-		}
-
-		return true;
+	function resetLeadStatus() {
+		leadPrepared = false;
+		leadMessage = '';
 	}
 
-	function goToStep(stepId: FlowStepId) {
-		if (!canOpenStep(stepId)) {
-			return;
-		}
-
-		activeStepId = stepId;
+	function selectRepairZone(zone: RepairZoneChoice) {
+		selectedRepairZone = zone;
+		estimateResult = null;
+		estimateMessage = '';
 		areaMessage = '';
+		leadPrepared = false;
+		leadMessage = '';
+		leadNoteVisible = zone !== 'bathroom';
 	}
 
-	function goToParameters() {
-		resetPreparedLead();
-		activeStepId = 'parameters';
-	}
-
-	function showAreas() {
-		if (!areaCalculation) {
-			areaMessage = areaErrorText;
-			activeStepId = 'parameters';
+	function handlePrimaryAction() {
+		if (!isBathroomFlow) {
+			showLeadRequest();
 			return;
 		}
 
-		areaMessage = '';
-		activeStepId = 'areas';
+		void calculateEstimate();
 	}
 
-	function showWorks() {
-		if (!areaCalculation) {
-			areaMessage = areaErrorText;
-			activeStepId = 'parameters';
-			return;
-		}
-
-		activeStepId = 'works';
-	}
-
-	function toggleWorkOption(category: WorkCategory, option: WorkOption) {
-		const next = { ...selections };
-
-		if (isPackageOption(option.id) && next[option.id]) {
-			return;
-		}
-
-		if (next[option.id]) {
-			delete next[option.id];
-		} else if (areaCalculation) {
-			next[option.id] = createSelection(category, option, areaCalculation);
-		}
-
-		selections = next;
-		invalidateEstimate();
-	}
-
-	function updateSelectionQuantity(id: string, event: Event) {
-		const value = readInputNumber(event);
-		const selection = selections[id];
-
-		if (!selection || value < 0) {
-			return;
-		}
-
-		selections = {
-			...selections,
-			[id]: {
-				...selection,
-				quantity: value,
-				userTouched: true,
-			},
-		};
-		invalidateEstimate();
-	}
-
-	function updateSelectionThickness(id: string, event: Event) {
-		const value = readInputNumber(event);
-		const selection = selections[id];
-
-		if (!selection || value <= 0) {
-			return;
-		}
-
-		selections = {
-			...selections,
-			[id]: {
-				...selection,
-				thickness: value,
-				userTouched: true,
-			},
-		};
-		invalidateEstimate();
+	function showLeadRequest() {
+		leadNoteVisible = true;
+		leadPrepared = false;
+		leadMessage = '';
 	}
 
 	async function calculateEstimate() {
+		if (!isBathroomFlow) {
+			showLeadRequest();
+			return;
+		}
+
 		if (!areaCalculation) {
 			areaMessage = areaErrorText;
-			activeStepId = 'parameters';
 			return;
 		}
 
@@ -337,7 +283,6 @@
 			leadNoteVisible = true;
 			leadPrepared = false;
 			leadMessage = '';
-			activeStepId = 'estimate';
 			return;
 		}
 
@@ -345,7 +290,7 @@
 		estimateResult = null;
 		resetPreparedLead();
 		isSubmitting = true;
-		activeStepId = 'estimate';
+		areaMessage = '';
 
 		try {
 			const response = await fetch('/api/repair-estimate/calculate', {
@@ -372,8 +317,10 @@
 			}
 
 			estimateResult = data as EstimateResult;
+			leadNoteVisible = true;
 		} catch (error) {
 			estimateMessage = error instanceof Error ? error.message : HUMAN_ERROR;
+			leadNoteVisible = true;
 		} finally {
 			isSubmitting = false;
 		}
@@ -384,27 +331,18 @@
 		leadPrepared = false;
 
 		if (!clientDraft.name) {
-			leadMessage = 'Укажите имя клиента, чтобы подготовить заявку';
-			activeStepId = 'client';
+			leadMessage = 'Укажите имя, чтобы подготовить заявку';
 			return;
 		}
 
 		if (!clientDraft.phone) {
-			leadMessage = 'Укажите телефон клиента, чтобы подготовить заявку';
-			activeStepId = 'client';
+			leadMessage = 'Укажите телефон, чтобы подготовить заявку';
 			return;
 		}
 
 		leadPrepared = true;
 		leadMessage =
 			'Заявка подготовлена. Менеджер сможет взять контакты, адрес и рассчитанную смету с этого экрана.';
-		activeStepId = 'estimate';
-	}
-
-	function readInputNumber(event: Event): number {
-		const target = event.currentTarget as HTMLInputElement;
-		const value = Number(target.value.replace(',', '.'));
-		return Number.isFinite(value) ? value : 0;
 	}
 
 	function formatMoney(value: number | null): string {
@@ -446,14 +384,6 @@
 
 		return parts.join(' · ');
 	}
-
-	function stepNumber(stepId: FlowStepId): number {
-		return FLOW_STEPS.findIndex((step) => step.id === stepId) + 1;
-	}
-
-	function isPackageOption(optionId: string): boolean {
-		return BATHROOM_TILE_DEFAULT_OPTION_IDS.includes(optionId);
-	}
 </script>
 
 <main class="repair-flow">
@@ -462,10 +392,10 @@
 			<Content>
 				<div class="hero-row">
 					<div class="hero-copy">
-						<h3>Предварительный расчет санузла</h3>
+						<h3>Расчет ремонта санузла</h3>
 						<p>
-							Клиент заполняет данные объекта, получает смету по пакету "Санузел под плитку" и
-							оставляет данные для точного расчета после замера.
+							Введите параметры объекта, получите предварительную стоимость и оставьте заявку на
+							точную смету после замера.
 						</p>
 					</div>
 					<div class="hero-meta">
@@ -482,130 +412,46 @@
 			</Content>
 		</Paper>
 
-		<div class="stepper">
-			{#each FLOW_STEPS as step, index (step.id)}
-				<Button
-					class={`step-button ${step.id === activeStepId ? 'step-active' : ''}`}
-					disabled={!canOpenStep(step.id)}
-					variant={step.id === activeStepId ? 'raised' : 'outlined'}
-					on:click={() => goToStep(step.id)}
-				>
-					<Label>{index + 1}. {step.label}</Label>
-				</Button>
-			{/each}
-		</div>
-
-		<div class="workspace">
-			<Paper class="flow-panel">
+		<div class="quick-layout">
+			<Paper class="flow-panel quick-form-panel">
 				<Content>
-					{#if activeStepId === 'client'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('client')}. Данные клиента и объекта</h3>
-							<p>
-								Заполните контакты и адрес, чтобы расчет можно было передать менеджеру без переписки
-								заново.
-							</p>
-						</div>
+					<div class="step-heading">
+						<span class="flow-kicker">1 из 2 · расчет без звонка</span>
+						<h3>Расскажите об объекте</h3>
+						<p>
+							Выберите тип ремонта. Для санузла уже работает быстрый расчет, по остальным вариантам
+							можно оставить заявку на уточнение.
+						</p>
+					</div>
 
-						<div class="field-grid">
-							<TextField
-								bind:value={clientName}
-								input$autocomplete="name"
-								label="Имя клиента"
-								on:input={resetPreparedLead}
-								required
-								style="width:100%;"
-								variant="filled"
-							/>
-
-							<TextField
-								bind:value={clientPhone}
-								input$autocomplete="tel"
-								label="Телефон"
-								on:input={resetPreparedLead}
-								required
-								style="width:100%;"
-								type="tel"
-								variant="filled"
-							/>
-
-							<TextField
-								bind:value={objectAddress}
-								class="field-wide"
-								input$autocomplete="street-address"
-								label="Адрес объекта"
-								on:input={resetPreparedLead}
-								style="width:100%;"
-								variant="filled"
-							/>
-
-							<Select
-								bind:value={preferredContact}
-								label="Как удобнее связаться"
-								on:MDCSelect:change={resetPreparedLead}
-								style="width:100%;"
-								variant="filled"
+					<div class="scenario-cards" aria-label="Выбранный сценарий ремонта">
+						{#each REPAIR_ZONE_OPTIONS as option}
+							<button
+								type="button"
+								class:scenario-card--active={selectedRepairZone === option.id}
+								class="scenario-card"
+								on:click={() => selectRepairZone(option.id)}
 							>
-								<Option value="phone">Звонок</Option>
-								<Option value="whatsapp">WhatsApp</Option>
-								<Option value="telegram">Telegram</Option>
-							</Select>
+								<small>{option.quickEstimate ? 'Быстрый расчет' : 'Заявка'}</small>
+								<strong>{option.label}</strong>
+								<span>{option.description}</span>
+							</button>
+						{/each}
+					</div>
 
-							<TextField
-								bind:value={clientComment}
-								class="field-wide"
-								label="Комментарий"
-								on:input={resetPreparedLead}
-								style="width:100%;"
-								variant="filled"
-							/>
-						</div>
-
-						{#if leadMessage && !leadPrepared}
-							<p class="form-message error" role="alert">{leadMessage}</p>
-						{/if}
-
-						<div class="actions-row">
-							<Button variant="raised" on:click={goToParameters}>
-								<Icon class="material-icons">arrow_forward</Icon>
-								<Label>Перейти к расчету</Label>
-							</Button>
-						</div>
-					{:else if activeStepId === 'parameters'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('parameters')}. Параметры квартиры</h3>
-							<p>
-								Укажите площадь квартиры, высоту потолка и параметры санузла для предварительного
-								расчета.
-							</p>
-						</div>
-
-						<div class="scenario-paper">
-							<strong>Что ремонтируем:</strong>
-							<span>Санузел</span>
+					{#if isBathroomFlow}
+						<div class="package-note">
 							<strong>Пакет:</strong>
 							<span>Санузел под плитку</span>
 						</div>
 
-						<div class="field-grid">
-							<Select
-								bind:value={apartmentType}
-								label="Тип квартиры"
-								on:MDCSelect:change={applyApartmentDefaults}
-								style="width:100%;"
-								variant="filled"
-							>
-								{#each APARTMENT_TYPES as type}
-									<Option value={type.value}>{type.label}</Option>
-								{/each}
-							</Select>
-
+						<div class="field-grid quick-field-grid">
 							<TextField
 								bind:value={totalArea}
 								input$max="1000"
 								input$min="1"
 								input$step="0.1"
-								label="Общая площадь"
+								label="Общая площадь квартиры"
 								on:input={invalidateEstimate}
 								required
 								style="width:100%;"
@@ -659,7 +505,7 @@
 									input$max="1000"
 									input$min="0.1"
 									input$step="0.1"
-									label="Ванная"
+									label="Ванная, м²"
 									on:input={invalidateEstimate}
 									required
 									style="width:100%;"
@@ -669,292 +515,280 @@
 								/>
 							{/if}
 						</div>
-
-						{#if areaMessage}
-							<p class="form-message error" role="alert">{areaMessage}</p>
-						{/if}
-
-						<div class="actions-row">
-							<Button variant="raised" on:click={showAreas}>
-								<Icon class="material-icons">calculate</Icon>
-								<Label>Рассчитать площади</Label>
-							</Button>
-						</div>
-					{:else if activeStepId === 'areas'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('areas')}. Площади</h3>
-							<p>
-								Проверьте расчетные площади. По ним считается предварительная стоимость работ и
-								материалов.
-							</p>
-						</div>
-
-						{#if areaCalculation}
-							<div class="summary-grid">
-								{#each areaSummaryRows as row}
-									<Paper class="metric-paper">
-										<Content>
-											<small>{row.label}</small>
-											<strong>{row.value}</strong>
-										</Content>
-									</Paper>
-								{/each}
-							</div>
-
-							<div class="detail-columns">
-								<Paper class="detail-paper">
-									<Content>
-										<h4>Стены по комнатам</h4>
-										<ul class="data-list">
-											{#each areaCalculation.rooms as room}
-												<li>
-													<span>{room.name}</span>
-													<strong>{formatAreaValue(room.wallArea)}</strong>
-												</li>
-											{/each}
-										</ul>
-									</Content>
-								</Paper>
-
-								<Paper class="detail-paper">
-									<Content>
-										<h4>Санузел по зонам</h4>
-										<ul class="data-list">
-											{#each areaCalculation.bathrooms as bathroom}
-												<li>
-													<span>{bathroom.name} - стены</span>
-													<strong>{formatAreaValue(bathroom.wallArea)}</strong>
-												</li>
-												<li>
-													<span>{bathroom.name} - пол</span>
-													<strong>{formatAreaValue(bathroom.floorArea)}</strong>
-												</li>
-											{/each}
-										</ul>
-									</Content>
-								</Paper>
-
-								<div class="detail-paper-wide">
-									<Paper class="detail-paper">
-										<Content>
-											<h4>Полы по комнатам</h4>
-											<ul class="data-list">
-												{#each areaCalculation.rooms as room}
-													<li>
-														<span>{room.name}</span>
-														<strong>{formatAreaValue(room.area)}</strong>
-													</li>
-												{/each}
-											</ul>
-										</Content>
-									</Paper>
-								</div>
-							</div>
-
-							<div class="actions-row">
-								<Button variant="outlined" on:click={() => goToStep('parameters')}>
-									<Label>Назад</Label>
-								</Button>
-								<Button variant="raised" on:click={showWorks}>
-									<Icon class="material-icons">construction</Icon>
-									<Label>Выбрать работы</Label>
-								</Button>
-							</div>
-						{:else}
-							<p class="form-message error" role="alert">{areaErrorText}</p>
-						{/if}
-					{:else if activeStepId === 'works'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('works')}. Работы и материалы</h3>
-							<p>
-								Пакет санузла уже выбран. Дополнительные позиции помогают показать график и состав
-								работ для обсуждения с менеджером.
-							</p>
-						</div>
-
-						<div class="category-stack">
-							{#each WORK_CATEGORIES as category (category.id)}
-								<Paper class="category-paper">
-									<Content>
-										<div class="category-title">
-											<h4>{category.title}</h4>
-											<p>{category.hint}</p>
-										</div>
-
-										<div class="option-grid">
-											{#each category.items as option (option.id)}
-												<div class="work-option" class:selected={Boolean(selections[option.id])}>
-													<div class="option-field">
-														<FormField>
-															<Checkbox
-																checked={Boolean(selections[option.id])}
-																disabled={isPackageOption(option.id)}
-																on:change={() => toggleWorkOption(category, option)}
-															/>
-															<span slot="label">
-																{option.label}
-																{#if isPackageOption(option.id)}
-																	<small class="package-badge">В пакете</small>
-																{/if}
-															</span>
-														</FormField>
-													</div>
-
-													{#if selections[option.id]}
-														<div class="option-controls">
-															<TextField
-																input$min="0"
-																input$step={selections[option.id].unit === 'шт' ? '1' : '0.1'}
-																label="Количество"
-																on:input={(event) => updateSelectionQuantity(option.id, event)}
-																style="width:100%;"
-																suffix={selections[option.id].unit}
-																type="number"
-																value={selections[option.id].quantity}
-																variant="filled"
-															/>
-
-															{#if selections[option.id].thickness}
-																<TextField
-																	input$min="1"
-																	input$step="1"
-																	label="Слой"
-																	on:input={(event) => updateSelectionThickness(option.id, event)}
-																	style="width:100%;"
-																	suffix="мм"
-																	type="number"
-																	value={selections[option.id].thickness}
-																	variant="filled"
-																/>
-															{/if}
-														</div>
-													{/if}
-												</div>
-											{/each}
-										</div>
-									</Content>
-								</Paper>
-							{/each}
-						</div>
-
-						<div class="actions-row">
-							<Button variant="outlined" on:click={() => goToStep('areas')}>
-								<Label>Назад</Label>
-							</Button>
-							<Button disabled={isSubmitting} variant="raised" on:click={calculateEstimate}>
-								<Icon class="material-icons">request_quote</Icon>
-								<Label>{isSubmitting ? 'Считаем...' : 'Получить смету'}</Label>
-							</Button>
-						</div>
-					{:else if activeStepId === 'estimate'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('estimate')}. Предварительная смета</h3>
-							<p>
-								{isSeparateEstimateBlocked
-									? 'Площади рассчитаны. Денежную смету для раздельного санузла уточним после заявки.'
-									: 'Расчет доступен для пакета "Санузел под плитку". Точная смета после замера.'}
-							</p>
-						</div>
-
-						{#if isSubmitting}
-							<Paper class="state-paper">
-								<Content>
-									<h4>Считаем смету</h4>
-									<p>Обычно это занимает несколько секунд.</p>
-								</Content>
-							</Paper>
-						{:else if estimateResult}
-							<div class="summary-grid summary-grid--totals">
-								<Paper class="metric-paper">
-									<Content>
-										<small>Стоимость работ</small>
-										<strong>{formatMoney(estimateResult.works_total)}</strong>
-									</Content>
-								</Paper>
-								<Paper class="metric-paper">
-									<Content>
-										<small>Стоимость материалов</small>
-										<strong>{formatMoney(estimateResult.materials_total)}</strong>
-									</Content>
-								</Paper>
-								<Paper class="metric-paper metric-paper--accent">
-									<Content>
-										<small>Итого</small>
-										<strong>{formatMoney(estimateResult.total)}</strong>
-									</Content>
-								</Paper>
-							</div>
-
-							<div class="detail-columns">
-								<Paper class="detail-paper">
-									<Content>
-										<h4>Основные работы</h4>
-										<ul class="line-list">
-											{#each estimateResult.works as work}
-												<li>
-													<span>{work.name}</span>
-													{#if formatLineMeta(work)}
-														<small>{formatLineMeta(work)}</small>
-													{/if}
-												</li>
-											{/each}
-										</ul>
-									</Content>
-								</Paper>
-
-								<Paper class="detail-paper">
-									<Content>
-										<h4>Материалы</h4>
-										<ul class="line-list">
-											{#each materialLines as material}
-												<li>
-													<span>{material.name}</span>
-													{#if formatLineMeta(material)}
-														<small>{formatLineMeta(material)}</small>
-													{/if}
-												</li>
-											{/each}
-										</ul>
-									</Content>
-								</Paper>
-							</div>
-
-							{#if estimateResult.warnings.length > 0}
-								<p class="form-message warn">
-									{estimateResult.warnings.join(' ')}
+					{:else}
+						<Paper class="state-paper zone-request-paper">
+							<Content>
+								<h4>{selectedRepairOption.label}</h4>
+								<p>
+									Для этого варианта лучше сначала уточнить площадь, состояние объекта и состав
+									работ. Оставьте контакты, и менеджер подготовит расчет по вашему сценарию.
 								</p>
-							{/if}
+							</Content>
+						</Paper>
+					{/if}
+
+					{#if areaMessage}
+						<p class="form-message error" role="alert">{areaMessage}</p>
+					{/if}
+
+					<div class="actions-row primary-actions">
+						<Button
+							disabled={isBathroomFlow && (isSubmitting || !areaCalculation)}
+							variant="raised"
+							on:click={handlePrimaryAction}
+						>
+							<Icon class="material-icons">{isBathroomFlow ? 'request_quote' : 'campaign'}</Icon>
+							<Label>
+								{#if isBathroomFlow}
+									{isSubmitting ? 'Считаем...' : 'Рассчитать стоимость'}
+								{:else}
+									Оставить заявку на расчет
+								{/if}
+							</Label>
+						</Button>
+						<span class="cta-note">
+							{isBathroomFlow
+								? 'Точная смета после замера'
+								: 'Менеджер уточнит детали и перезвонит'}
+						</span>
+					</div>
+
+					{#if isBathroomFlow && areaErrorText}
+						<p class="form-message error" role="alert">{areaErrorText}</p>
+					{/if}
+				</Content>
+			</Paper>
+
+			<Paper class="side-panel quick-summary-panel">
+				<Content>
+					<div class="side-section">
+						<h4>Что уже выбрано</h4>
+						<ul class="mini-checklist">
+							<li><span>✓</span> {selectedRepairOption.label}</li>
+							<li><span>✓</span> {isBathroomFlow ? 'Пакет под плитку' : 'Сценарий уточним'}</li>
+							<li>
+								<span>✓</span>
+								{isBathroomFlow ? 'Предварительная смета' : 'Заявка на расчет'}
+							</li>
+						</ul>
+					</div>
+
+					{#if isBathroomFlow}
+						<div class="side-section">
+							<h4>Параметры</h4>
+							<ul class="data-list">
+								<li>
+									<span>Квартира</span>
+									<strong>{formatAreaValue(totalArea)}</strong>
+								</li>
+								<li>
+									<span>Потолок</span>
+									<strong>{String(ceilingHeight).replace('.', ',')} м</strong>
+								</li>
+								<li>
+									<span>Санузел</span>
+									<strong>{formatAreaValue(bathroomPrimaryArea)}</strong>
+								</li>
+							</ul>
+						</div>
+					{/if}
+
+					{#if isBathroomFlow && areaCalculation}
+						<div class="side-section">
+							<h4>Ключевые площади</h4>
+							<ul class="data-list">
+								<li>
+									<span>Стены санузла</span>
+									<strong>{formatAreaValue(areaCalculation.wallTile)}</strong>
+								</li>
+								<li>
+									<span>Пол санузла</span>
+									<strong>{formatAreaValue(areaCalculation.floorTile)}</strong>
+								</li>
+								<li>
+									<span>Потолки</span>
+									<strong>{formatAreaValue(areaCalculation.ceilingArea)}</strong>
+								</li>
+							</ul>
+						</div>
+					{/if}
+				</Content>
+			</Paper>
+		</div>
+
+		{#if isSubmitting || estimateResult || estimateMessage || !isBathroomFlow}
+			<section class="result-zone" aria-live="polite">
+				<div class="result-header">
+					<span class="flow-kicker">2 из 2 · результат</span>
+					<h3>{isBathroomFlow ? 'Предварительная смета' : 'Заявка на расчет'}</h3>
+					<p>
+						{#if !isBathroomFlow}
+							Вы выбрали "{selectedRepairOption.label}". Оставьте контакты, чтобы менеджер уточнил
+							детали и подготовил расчет.
+						{:else if isSeparateEstimateBlocked}
+							Площади рассчитаны. Денежную смету для раздельного санузла уточним после заявки.
+						{:else}
+							Расчет доступен для пакета "Санузел под плитку". Точная смета после замера.
+						{/if}
+					</p>
+				</div>
+
+				{#if !isBathroomFlow}
+					<Paper class="state-paper">
+						<Content>
+							<h4>{selectedRepairOption.label}</h4>
+							<p>Быстрый онлайн-расчет для этого варианта подключим отдельным сценарием.</p>
+						</Content>
+					</Paper>
+				{:else if isSubmitting}
+					<Paper class="state-paper">
+						<Content>
+							<h4>Считаем предварительную стоимость</h4>
+							<p>Обычно это занимает несколько секунд.</p>
+						</Content>
+					</Paper>
+				{:else if estimateResult}
+					<div class="summary-grid summary-grid--totals">
+						<Paper class="metric-paper">
+							<Content>
+								<small>Стоимость работ</small>
+								<strong>{formatMoney(estimateResult.works_total)}</strong>
+							</Content>
+						</Paper>
+						<Paper class="metric-paper">
+							<Content>
+								<small>Стоимость материалов</small>
+								<strong>{formatMoney(estimateResult.materials_total)}</strong>
+							</Content>
+						</Paper>
+						<Paper class="metric-paper metric-paper--accent">
+							<Content>
+								<small>Итого</small>
+								<strong>{formatMoney(estimateResult.total)}</strong>
+							</Content>
+						</Paper>
+					</div>
+
+					<div class="detail-columns">
+						<Paper class="detail-paper">
+							<Content>
+								<h4>Основные работы</h4>
+								<ul class="line-list">
+									{#each estimateResult.works as work}
+										<li>
+											<span>{work.name}</span>
+											{#if formatLineMeta(work)}
+												<small>{formatLineMeta(work)}</small>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</Content>
+						</Paper>
+
+						<Paper class="detail-paper">
+							<Content>
+								<h4>Материалы</h4>
+								<ul class="line-list">
+									{#each materialLines as material}
+										<li>
+											<span>{material.name}</span>
+											{#if formatLineMeta(material)}
+												<small>{formatLineMeta(material)}</small>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</Content>
+						</Paper>
+					</div>
+
+					{#if estimateResult.warnings.length > 0}
+						<p class="form-message warn">
+							{estimateResult.warnings.join(' ')}
+						</p>
+					{/if}
+				{:else if estimateMessage}
+					<p class="form-message error" role="alert">{estimateMessage}</p>
+				{/if}
+
+				{#if leadNoteVisible}
+					<Paper class="lead-form-paper">
+						<Content>
+							<div class="step-heading">
+								<h3>Оставить заявку</h3>
+								<p>
+									Контакты нужны только для связи и замера. Расчет уже можно передать менеджеру с
+									этого экрана.
+								</p>
+							</div>
+
+							<div class="field-grid contact-grid">
+								<TextField
+									bind:value={clientName}
+									input$autocomplete="name"
+									label="Имя"
+									on:input={resetLeadStatus}
+									required
+									style="width:100%;"
+									variant="filled"
+								/>
+
+								<TextField
+									bind:value={clientPhone}
+									input$autocomplete="tel"
+									label="Телефон"
+									on:input={resetLeadStatus}
+									required
+									style="width:100%;"
+									type="tel"
+									variant="filled"
+								/>
+
+								<TextField
+									bind:value={objectAddress}
+									class="field-wide"
+									input$autocomplete="street-address"
+									label="Адрес объекта"
+									on:input={resetLeadStatus}
+									style="width:100%;"
+									variant="filled"
+								/>
+
+								<Select
+									bind:value={preferredContact}
+									label="Как удобнее связаться"
+									on:MDCSelect:change={resetLeadStatus}
+									style="width:100%;"
+									variant="filled"
+								>
+									<Option value="phone">Звонок</Option>
+									<Option value="whatsapp">WhatsApp</Option>
+									<Option value="telegram">Telegram</Option>
+								</Select>
+
+								<TextField
+									bind:value={clientComment}
+									class="field-wide"
+									label="Комментарий"
+									on:input={resetLeadStatus}
+									style="width:100%;"
+									variant="filled"
+								/>
+							</div>
 
 							<div class="actions-row">
 								<Button variant="raised" on:click={prepareLead}>
 									<Icon class="material-icons">campaign</Icon>
 									<Label>Оставить заявку</Label>
 								</Button>
-								<Button variant="outlined" on:click={() => goToStep('schedule')}>
-									<Label>Посмотреть график</Label>
-								</Button>
+								<a class="phone-link" href="tel:+79529394194">Позвонить: +7 952 939-41-94</a>
 							</div>
-						{:else}
-							<Paper class="state-paper">
-								<Content>
-									{#if isSeparateEstimateBlocked}
-										<h4>Нужна заявка для уточнения</h4>
-										<p>{SEPARATE_BATHROOM_MESSAGE}</p>
-										<Button variant="raised" on:click={prepareLead}>
-											<Label>Оставить заявку</Label>
-										</Button>
-									{:else}
-										<h4>Смета еще не рассчитана</h4>
-										<p>Выберите работы и запустите предварительный расчет.</p>
-										<Button disabled={isSubmitting} variant="raised" on:click={calculateEstimate}>
-											<Label>Рассчитать</Label>
-										</Button>
-									{/if}
-								</Content>
-							</Paper>
-						{/if}
 
-						{#if leadNoteVisible}
+							{#if leadMessage && !leadPrepared}
+								<p class="form-message error" role="alert">{leadMessage}</p>
+							{/if}
+
 							{#if leadPrepared}
 								<Paper class="lead-paper">
 									<Content>
@@ -975,176 +809,98 @@
 										{/if}
 									</Content>
 								</Paper>
-							{:else if leadMessage}
-								<p class="form-message error" role="alert">{leadMessage}</p>
 							{/if}
-						{/if}
+						</Content>
+					</Paper>
+				{/if}
 
-						{#if estimateMessage && !isSeparateEstimateBlocked}
-							<p class="form-message error" role="alert">{estimateMessage}</p>
-						{/if}
-					{:else if activeStepId === 'schedule'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('schedule')}. График работ</h3>
-							<p>Ориентировочный порядок этапов по выбранному наполнению.</p>
-						</div>
-
-						{#if scheduleStages.length > 0}
-							<Paper class="state-paper">
-								<Content>
-									<h4>Ориентир по длительности</h4>
-									<p><strong>{totalScheduleDays} дн.</strong></p>
-								</Content>
-							</Paper>
-
-							<ol class="timeline">
-								{#each scheduleStages as stage, index}
-									<li>
-										<Paper class="detail-paper">
+				{#if isBathroomFlow}
+					<div class="details-stack">
+						{#if areaCalculation}
+							<details class="details-panel">
+								<summary>Показать расчетные площади</summary>
+								<div class="summary-grid">
+									{#each areaSummaryRows as row}
+										<Paper class="metric-paper">
 											<Content>
-												<h4>{index + 1}. {stage.title}</h4>
-												<p>{stage.details}</p>
-												<strong>{stage.days} дн.</strong>
-												<ul class="timeline-list">
-													{#each stage.items.slice(0, 5) as item}
-														<li>{item}</li>
-													{/each}
-												</ul>
+												<small>{row.label}</small>
+												<strong>{row.value}</strong>
 											</Content>
 										</Paper>
-									</li>
-								{/each}
-							</ol>
-						{:else}
-							<Paper class="state-paper">
-								<Content>
-									<h4>График появится после выбора работ</h4>
-									<p>На шаге "Работы" отметьте нужные позиции.</p>
-								</Content>
-							</Paper>
+									{/each}
+								</div>
+							</details>
 						{/if}
-					{:else if activeStepId === 'roughMaterials'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('roughMaterials')}. Черновые материалы</h3>
-							<p>Предварительный список по подготовительным и инженерным позициям.</p>
-						</div>
 
-						{#if materialsView.rough.length > 0}
-							<Paper class="detail-paper">
-								<Content>
-									<ul class="materials-list">
-										{#each materialsView.rough as item}
-											<li>
-												<span>{item.label}</span>
-												<strong>{selectionMeta(item)}</strong>
-											</li>
-										{/each}
-									</ul>
-								</Content>
-							</Paper>
-						{:else}
-							<Paper class="state-paper">
-								<Content>
-									<h4>Черновые материалы не выбраны</h4>
-									<p>Вернитесь к работам и отметьте подготовку, электрику или сантехнику.</p>
-								</Content>
-							</Paper>
+						{#if scheduleStages.length > 0}
+							<details class="details-panel">
+								<summary>Показать ориентировочный график</summary>
+								<Paper class="state-paper">
+									<Content>
+										<h4>Ориентир по длительности</h4>
+										<p><strong>{totalScheduleDays} дн.</strong></p>
+									</Content>
+								</Paper>
+
+								<ol class="timeline">
+									{#each scheduleStages as stage, index}
+										<li>
+											<Paper class="detail-paper">
+												<Content>
+													<h4>{index + 1}. {stage.title}</h4>
+													<p>{stage.details}</p>
+													<strong>{stage.days} дн.</strong>
+													<ul class="timeline-list">
+														{#each stage.items.slice(0, 5) as item}
+															<li>{item}</li>
+														{/each}
+													</ul>
+												</Content>
+											</Paper>
+										</li>
+									{/each}
+								</ol>
+							</details>
 						{/if}
-					{:else if activeStepId === 'finishMaterials'}
-						<div class="step-heading">
-							<h3>Шаг {stepNumber('finishMaterials')}. Финишные материалы</h3>
-							<p>Плитка, покрытия, свет и другие чистовые позиции для обсуждения после замера.</p>
-						</div>
 
-						{#if materialsView.finish.length > 0}
-							<Paper class="detail-paper">
-								<Content>
-									<ul class="materials-list">
-										{#each materialsView.finish as item}
-											<li>
-												<span>{item.label}</span>
-												<strong>{selectionMeta(item)}</strong>
-											</li>
-										{/each}
-									</ul>
-								</Content>
-							</Paper>
-						{:else}
-							<Paper class="state-paper">
-								<Content>
-									<h4>Финишные материалы не выбраны</h4>
-									<p>Вернитесь к работам и отметьте чистовые позиции.</p>
-								</Content>
-							</Paper>
-						{/if}
-					{/if}
-				</Content>
-			</Paper>
-
-			<Paper class="side-panel">
-				<Content>
-					<div class="side-section">
-						<h4>Клиент</h4>
-						<ul class="data-list">
-							{#each clientSummaryRows as row}
-								<li>
-									<span>{row.label}</span>
-									<strong>{row.value}</strong>
-								</li>
-							{/each}
-						</ul>
-						{#if !leadReady}
-							<p class="side-note">Имя и телефон нужны для заявки.</p>
-						{/if}
-					</div>
-
-					<div class="side-section">
-						<h4>Сценарий</h4>
-						<p>Санузел под плитку</p>
-						<small>Предварительный расчет. Точная смета после замера.</small>
-					</div>
-
-					{#if areaCalculation}
-						<div class="side-section">
-							<h4>Ключевые площади</h4>
-							<ul class="data-list">
-								<li>
-									<span>Стены санузла</span>
-									<strong>{formatAreaValue(areaCalculation.wallTile)}</strong>
-								</li>
-								<li>
-									<span>Пол санузла</span>
-									<strong>{formatAreaValue(areaCalculation.floorTile)}</strong>
-								</li>
-								<li>
-									<span>Потолки</span>
-									<strong>{formatAreaValue(areaCalculation.ceilingArea)}</strong>
-								</li>
-							</ul>
-						</div>
-					{/if}
-
-					<div class="side-section">
-						<h4>Выбрано</h4>
 						{#if selectedOptions.length > 0}
-							<ul class="line-list">
-								{#each selectedOptions.slice(0, 8) as item}
-									<li>
-										<span>{item.label}</span>
-										<small>{selectionMeta(item)}</small>
-									</li>
-								{/each}
-							</ul>
-							{#if selectedOptions.length > 8}
-								<p class="side-note">Еще {selectedOptions.length - 8} поз.</p>
-							{/if}
-						{:else}
-							<p class="side-note">Позиции появятся после выбора работ.</p>
+							<details class="details-panel">
+								<summary>Показать пакет работ и материалов</summary>
+								<div class="detail-columns">
+									<Paper class="detail-paper">
+										<Content>
+											<h4>Пакет работ</h4>
+											<ul class="materials-list">
+												{#each selectedOptions as item}
+													<li>
+														<span>{item.label}</span>
+														<strong>{selectionMeta(item)}</strong>
+													</li>
+												{/each}
+											</ul>
+										</Content>
+									</Paper>
+
+									<Paper class="detail-paper">
+										<Content>
+											<h4>Материалы для обсуждения</h4>
+											<ul class="materials-list">
+												{#each [...materialsView.rough, ...materialsView.finish] as item}
+													<li>
+														<span>{item.label}</span>
+														<strong>{selectionMeta(item)}</strong>
+													</li>
+												{/each}
+											</ul>
+										</Content>
+									</Paper>
+								</div>
+							</details>
 						{/if}
 					</div>
-				</Content>
-			</Paper>
-		</div>
+				{/if}
+			</section>
+		{/if}
 	</section>
 </main>
 
@@ -1163,8 +919,8 @@
 	:global(.side-panel),
 	:global(.metric-paper),
 	:global(.detail-paper),
-	:global(.category-paper),
 	:global(.state-paper),
+	:global(.lead-form-paper),
 	:global(.lead-paper) {
 		max-width: 100%;
 	}
@@ -1182,10 +938,10 @@
 
 	.hero-copy h3,
 	.step-heading h3,
-	.category-title h4,
+	.result-header h3,
+	.side-section h4,
 	:global(.detail-paper h4),
-	:global(.state-paper h4),
-	.side-section h4 {
+	:global(.state-paper h4) {
 		text-align: left;
 		margin-left: 0;
 		margin-right: 0;
@@ -1193,12 +949,9 @@
 
 	.hero-copy p,
 	.step-heading p,
-	.category-title p,
+	.result-header p,
 	:global(.detail-paper p),
-	:global(.state-paper p),
-	.side-section p,
-	.side-section small,
-	.side-note {
+	:global(.state-paper p) {
 		color: rgba(0, 0, 0, 0.68);
 		line-height: 1.5;
 	}
@@ -1216,8 +969,7 @@
 	}
 
 	.hero-meta small,
-	:global(.metric-paper small),
-	.side-section small {
+	:global(.metric-paper small) {
 		display: block;
 		margin-bottom: 0.25rem;
 		color: rgba(0, 0, 0, 0.6);
@@ -1228,35 +980,19 @@
 		font-weight: bold;
 	}
 
-	.stepper {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		justify-content: center;
-		margin: 0 auto 1.25rem;
-	}
-
-	.stepper :global(.step-button) {
-		min-width: 9.5rem;
-	}
-
-	.stepper :global(.step-active) {
-		box-shadow: 0 0 0 1px rgba(219, 56, 1, 0.18);
-	}
-
-	.workspace {
+	.quick-layout {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 320px;
+		grid-template-columns: minmax(0, 1fr) 340px;
 		gap: 1rem;
 		align-items: start;
 	}
 
 	:global(.flow-panel) {
-		padding: 0.75rem;
+		padding: 1rem;
 	}
 
 	:global(.side-panel) {
-		padding: 0.5rem;
+		padding: 0.75rem;
 		position: sticky;
 		top: 4.5rem;
 	}
@@ -1265,20 +1001,81 @@
 		margin-bottom: 1rem;
 	}
 
-	.scenario-paper {
+	.flow-kicker {
+		display: inline-block;
+		margin-bottom: 0.35rem;
+		color: #a92c01;
+		font-size: 0.85rem;
+		font-weight: 700;
+		text-transform: uppercase;
+	}
+
+	.scenario-cards {
 		display: grid;
-		grid-template-columns: auto 1fr;
-		gap: 0.35rem 0.9rem;
-		padding: 0.9rem 1rem;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.75rem;
+		margin-bottom: 1rem;
+	}
+
+	.scenario-card {
+		background: rgba(103, 103, 120, 0.08);
+		border: 1px solid rgba(103, 103, 120, 0.16);
+		border-radius: 6px;
+		padding: 0.8rem 0.9rem;
+		color: inherit;
+		cursor: pointer;
+		font: inherit;
+		text-align: left;
+	}
+
+	.scenario-card--active {
+		border-left: 4px solid #db3801;
+		background: rgba(219, 56, 1, 0.06);
+		box-shadow: 0 0 0 1px rgba(219, 56, 1, 0.12);
+	}
+
+	.scenario-card:focus-visible {
+		outline: 2px solid #db3801;
+		outline-offset: 2px;
+	}
+
+	.scenario-card small {
+		display: block;
+		margin-bottom: 0.25rem;
+		color: rgba(0, 0, 0, 0.58);
+	}
+
+	.scenario-card strong {
+		display: block;
+		line-height: 1.25;
+	}
+
+	.scenario-card span {
+		display: block;
+		margin-top: 0.35rem;
+		color: rgba(0, 0, 0, 0.62);
+		font-size: 0.92rem;
+		line-height: 1.35;
+	}
+
+	.package-note {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.6rem;
+		margin: 1rem 0;
+		padding: 0.8rem 0.9rem;
 		background: rgba(103, 103, 120, 0.08);
 		border-left: 4px solid #db3801;
-		margin-bottom: 1rem;
 	}
 
 	.field-grid {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: 1rem;
+	}
+
+	.quick-field-grid {
+		margin-top: 1rem;
 	}
 
 	:global(.field-wide) {
@@ -1290,6 +1087,30 @@
 		flex-wrap: wrap;
 		gap: 0.75rem;
 		margin-top: 1.25rem;
+		align-items: center;
+	}
+
+	.primary-actions {
+		margin-top: 1.5rem;
+	}
+
+	.cta-note {
+		color: rgba(0, 0, 0, 0.62);
+		font-size: 0.95rem;
+	}
+
+	.phone-link {
+		font-weight: 700;
+	}
+
+	.result-zone {
+		margin-top: 1.25rem;
+		display: grid;
+		gap: 1rem;
+	}
+
+	.result-header {
+		padding: 0 0.25rem;
 	}
 
 	.form-message {
@@ -1342,9 +1163,13 @@
 
 	:global(.detail-paper),
 	:global(.state-paper),
-	:global(.category-paper),
+	:global(.lead-form-paper),
 	:global(.lead-paper) {
-		padding: 0.3rem 0.4rem;
+		padding: 0.35rem 0.45rem;
+	}
+
+	:global(.lead-form-paper) {
+		border-left: 4px solid #db3801;
 	}
 
 	:global(.lead-paper) {
@@ -1383,60 +1208,6 @@
 	.lead-comment {
 		margin-top: 1rem;
 		color: rgba(0, 0, 0, 0.68);
-	}
-
-	.detail-paper-wide {
-		grid-column: 1 / -1;
-	}
-
-	.category-stack {
-		display: grid;
-		gap: 1rem;
-	}
-
-	.category-title {
-		margin-bottom: 0.75rem;
-	}
-
-	.option-grid {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.75rem;
-	}
-
-	.work-option {
-		border: 1px solid rgba(103, 103, 120, 0.18);
-		border-radius: 4px;
-		padding: 0.75rem;
-		background: rgba(255, 255, 255, 0.45);
-	}
-
-	.work-option.selected {
-		border-color: rgba(219, 56, 1, 0.4);
-		background: rgba(219, 56, 1, 0.04);
-	}
-
-	.option-field {
-		width: 100%;
-	}
-
-	.option-controls {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.75rem;
-		margin-top: 0.75rem;
-	}
-
-	.package-badge {
-		display: inline-block;
-		margin-left: 0.45rem;
-		padding: 0.15rem 0.45rem;
-		border-radius: 999px;
-		background: rgba(219, 56, 1, 0.12);
-		color: #a92c01;
-		font-size: 0.8rem;
-		font-weight: bold;
-		white-space: nowrap;
 	}
 
 	.data-list,
@@ -1485,18 +1256,54 @@
 		display: block;
 	}
 
+	.mini-checklist {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: grid;
+		gap: 0.55rem;
+	}
+
+	.mini-checklist li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.mini-checklist span {
+		color: #a92c01;
+		font-weight: 700;
+	}
+
 	.side-section + .side-section {
 		margin-top: 1rem;
 		padding-top: 1rem;
 		border-top: 1px solid rgba(103, 103, 120, 0.14);
 	}
 
-	.side-note {
-		margin-top: 0.75rem;
+	.details-stack {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.details-panel {
+		border: 1px solid rgba(103, 103, 120, 0.18);
+		border-radius: 6px;
+		padding: 0.9rem 1rem;
+		background: rgba(255, 255, 255, 0.45);
+	}
+
+	.details-panel summary {
+		cursor: pointer;
+		font-weight: 700;
+	}
+
+	.details-panel[open] summary {
+		margin-bottom: 1rem;
 	}
 
 	@media (max-width: 1080px) {
-		.workspace {
+		.quick-layout {
 			grid-template-columns: 1fr;
 		}
 
@@ -1515,17 +1322,12 @@
 		}
 
 		.hero-row,
+		.scenario-cards,
 		.field-grid,
 		.lead-grid,
 		.summary-grid,
 		.summary-grid--totals,
-		.detail-columns,
-		.option-grid,
-		.option-controls {
-			grid-template-columns: 1fr;
-		}
-
-		.scenario-paper {
+		.detail-columns {
 			grid-template-columns: 1fr;
 		}
 
@@ -1534,12 +1336,8 @@
 			display: grid;
 		}
 
-		.stepper {
-			justify-content: stretch;
-		}
-
-		.stepper :global(.step-button) {
-			flex: 1 1 100%;
+		.hero-meta {
+			min-width: 0;
 		}
 	}
 </style>
