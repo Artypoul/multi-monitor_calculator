@@ -10,17 +10,18 @@ allowed-tools: Read Glob Grep Bash
 
 Использовать **перед** открытием PR. Лечит класс багов «smoke прошёл, прод сломан» — когда тестовый setup отличается от реального пользовательского пути.
 
-Триггеры: изменения в `hooks.server.ts` / `+layout.server.ts` (guard, token restore), редирект после `use:enhance` / form action, любой `goto(...)` после мутации.
+Триггеры: изменения в `hooks.server.ts` / `+layout.server.ts`, server endpoint bridge, редирект после `use:enhance` / form action, любой `goto(...)` после мутации.
 
 ## 1. API contract table
 
 Перед написанием `load` / action выписать таблицу источников правды:
 
 ```
-| Поле                  | Гарантированно есть в      | Может отсутствовать в    |
-| --------------------- | -------------------------- | ------------------------ |
-| user.needs_onboarding | GET /api/user              | POST /api/login.user     |
-| user.access_token     | POST /api/login.user       | GET /api/user.user       |
+| Поле                  | Гарантированно есть в       | Может отсутствовать в    |
+| --------------------- | --------------------------- | ------------------------ |
+| result.total          | 200 success response        | 4xx/5xx error response   |
+| errors.<field>        | 422 validation response     | 200 success response     |
+| warnings              | success response, если есть | empty/legacy response    |
 ```
 
 Проверка делается **curl'ом**, не на доверии к описанию в письме / документации.
@@ -30,7 +31,7 @@ curl -s -H "Authorization: Bearer $TOK" -H "Accept: application/json" \
   <local-or-remote-endpoint> | jq '.'
 ```
 
-Сравнить три варианта: без токена (публичный?), с токеном свежесозданного юзера (new user), с токеном уже-завершившего флоу (returning user).
+Сравнить варианты: валидный payload, минимальный payload, невалидные поля, недоступный backend/ERP. Если endpoint публичный, не добавлять пользовательскую авторизацию только ради теста.
 
 ## 2. Real flow vs test setup
 
@@ -57,9 +58,9 @@ curl -s -H "Authorization: Bearer $TOK" -H "Accept: application/json" \
 Добавил паттерн в одном месте — `grep` похожие:
 
 ```bash
-grep -rn "redirect(3" src/routes              # все редиректы в load / actions
-grep -rn "invalidate\|invalidateAll" src/      # где обновляем данные после мутации
-grep -rn "locals.user\|locals.session" src/    # где читаем сессию
+rg -n "redirect\\(3" src/routes                 # все редиректы в load / actions
+rg -n "invalidate|invalidateAll" src/           # где обновляем данные после мутации
+rg -n "GIGMA_APP_TOKEN|Token:" src/             # токены только server-side
 ```
 
 Если паттерн нужен в N местах — применить во **всех** N сразу. Локальная слепота — частая причина регрессий через 2 PR.
@@ -72,8 +73,8 @@ grep -rn "locals.user\|locals.session" src/    # где читаем сесси�
 | 200 без нужного поля         | undefined → ветка else     | refetch из надёжного endpoint    |
 | 422 с errors.field           | field error                | parseFieldErrors → fail(422, …)  |
 | Network failure (нет ответа) | бросок в load              | +error.svelte / try-catch        |
-| 401 в публичном endpoint     | глобальный редирект мешает | флаг «не редиректить» в client   |
-| 403 для не-владельца         | общий редирект             | локальное сообщение, если важно  |
+| 401 от внешнего API          | общий fallback             | human-readable error, token server-only |
+| 403 от внешнего API          | общий fallback             | понятное сообщение, если важно   |
 ```
 
 Пустая клетка «защита» — починить ДО PR.
@@ -83,13 +84,13 @@ grep -rn "locals.user\|locals.session" src/    # где читаем сесси�
 Для многошагового flow расписать:
 
 ```
-- Что выполняется в hooks.server.ts на каждый запрос (сессия)?
+- Что выполняется в local server endpoint / action на каждый запрос?
 - Какой load server-only (+page.server.ts), какой universal (+page.ts)?
 - Что инвалидируется после мутации (invalidate / invalidateAll)?
 - Какой переход — client-side (goto) vs full reload (location)?
 ```
 
-Особенно для: token-restore (refresh, прямой URL), цепочек редиректов (A→B→C по условию), guard в `+layout.server.ts` (он отрабатывает на каждую серверную загрузку лэйаута — но проверь, что целевой роут реально под этим лэйаутом).
+Особенно для: server-side bridge к ERP, цепочек редиректов (A→B→C по условию), guards в `+layout.server.ts` (если они есть — проверь, что целевой роут реально под этим лэйаутом).
 
 ## 6. Stop-phrases
 
@@ -101,8 +102,8 @@ grep -rn "locals.user\|locals.session" src/    # где читаем сесси�
 - «layout.server поймает» — проверить, что целевой роут под этим лэйаутом и `load` реально перезапустится в этом flow.
 - «после мутации обновится» — проверить, что есть `invalidate` (SvelteKit не перечитывает `load` сам).
 
-## История уроков (из React-предшественника gigma-new — принципы переносятся)
+## История уроков
 
-- **needs_onboarding**: handler читал поле из `login.user`, но контракт гарантирует его только в `GET /api/user`. Юзер минул онбординг. Урок: контракт — curl'ом (п.1), после login дочитать `/api/user`.
+- **Поле прочитали не из того response**: handler ожидал поле там, где контракт его не гарантировал. Урок: контракт — curl'ом (п.1), real flow проверить кликами.
 - **PR base = ветка другого PR**: после merge коммиты ушли не в main. Урок: PR base = master всегда.
 - **«работает как в X» без сверки**: реально было иначе. Урок: «по такому же паттерну» = открыть оба файла и сравнить.

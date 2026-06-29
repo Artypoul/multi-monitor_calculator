@@ -1,9 +1,11 @@
-# Legacy note
+# Legacy source note
 
-Этот файл сохранён только ради совместимости перенесённого harness.
+Эта папка skills была перенесена из:
 
-Для текущего проекта используй актуальную шпаргалку:
+`C:\Users\Art\Documents\GitHub\vps_artpol\.claude\skills`
+
+Source-проект содержит правила для другого продукта. Для текущего проекта используй актуальную шпаргалку:
 
 - [`REFERENCE-gigma-front.md`](./REFERENCE-gigma-front.md)
 
-Если здесь или в импортированных skill-примерах встречаются детали из `vps_artpol`, не использовать их как продуктовую правду для `multi-monitor_calculator`.
+Если в imported skill-примерах встречаются старые product-specific кейсы, не использовать их как продуктовую правду для `multi-monitor_calculator`. Это только примеры flow-рисков.

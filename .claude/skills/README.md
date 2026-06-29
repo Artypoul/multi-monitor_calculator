@@ -16,5 +16,6 @@
 
 ## Важные примечания
 
-- Этот harness перенесён из `vps_artpol`; часть примеров внутри skills осталась из source-проекта. Там, где встречаются auth/onboarding/specialization-кейсы, интерпретируй их как шаблоны ревью рисков.
+- Skills перенесены из `C:\Users\Art\Documents\GitHub\vps_artpol\.claude\skills`, но адаптированы под текущий проект.
+- Если в source-skills встречались старые product-specific кейсы, здесь они трактуются как шаблоны проверки flow-рисков, а не как literal contract текущего продукта.
 - Для текущего проекта главное: существующий SMUI visual language, responsive `<=1024 / <=768 / <=480`, и server-side работа с Gigma без утечки токена в браузер.

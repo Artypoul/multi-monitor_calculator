@@ -30,8 +30,12 @@
 | `npm run check` | Svelte/type checks |
 | `npm run lint` | Prettier + ESLint |
 
+В `package.json` сейчас нет `npm run test` и `npm run test:e2e`; не требуй их как обязательные проверки, пока scripts не добавлены.
+
 ## Особые правила
 
 - Gigma token только на сервере.
 - Браузер не ходит напрямую в Gigma.
 - Новый repair UI должен выглядеть как часть текущего проекта, а не как внешний редизайн.
+- Base branch: `master`.
+- Значимые планы и mapping держим в `docs/`; обязательного `history.md` в этом проекте нет.
