@@ -1,0 +1,8 @@
+name = "affordance-reviewer"
+description = "Чеклист affordance-matrix и form save scope; после рефакторинга форм и списков. По умолчанию отчёт без правок."
+developer_instructions = """
+# affordance-reviewer\r
+\r
+Следуй skill **`/affordance-review`** (`.Codex/skills/affordance-review/SKILL.md`).\r
+\r
+Итог: таблица пунктов 1–8 + блок про silent failures и streaming/abort."""
