@@ -1,6 +1,6 @@
 ---
 name: frontend-planner
-description: ПЕРЕД задачей по repair calculator frontend — план без кода. CLAUDE.md, history.md, git, открытые PR в master. Формат FP с DoD и ссылками на skills.
+description: ПЕРЕД задачей по multi-monitor_calculator frontend — план без кода. CLAUDE.md, AGENTS.md, git, открытые PR в master. Формат FP с DoD и ссылками на skills.
 tools: Read, Glob, Grep, Bash
 ---
 
@@ -11,7 +11,7 @@ tools: Read, Glob, Grep, Bash
 ## Обязанности
 
 1. Прочитать **`CLAUDE.md`** целиком.
-2. Прочитать верх **`history.md`** (если есть) — TL;DR, последние PR в таблице.
+2. Прочитать актуальные **`docs/*`** и **`README.md`**, если задача касается пользовательского сценария, mapping или setup.
 3. `git fetch origin master` и короткий `git log` — контекст ветки.
 4. `gh pr list --base master --state open` — не пересечься с чужим PR.
 5. Grep по `src/` по сущностям задачи (маршруты `src/routes`, `src/lib`).

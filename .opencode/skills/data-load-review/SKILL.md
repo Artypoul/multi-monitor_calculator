@@ -1,6 +1,6 @@
 ---
 name: data-load-review
-description: Use after changes to `src/lib/api`, `+page.ts`, `+page.server.ts`, form actions, `hooks.server.ts`, auth, caching, or invalidation. Reviews data loading and mutation risks; edits only on explicit request.
+description: Use after changes to `src/routes/api`, `src/lib/server`, `+page.ts`, `+page.server.ts`, form actions, caching, or invalidation. Reviews data loading and mutation risks; edits only on explicit request.
 ---
 
 # Data Load Review
@@ -9,7 +9,7 @@ Default to a report. Do not edit code unless the user explicitly asks to fix iss
 
 Check:
 
-- `src/lib/api/client.ts`: Bearer token source, no localStorage auth, consistent non-2xx handling, error bodies preserved, one agreed 401 path.
+- `src/lib/server/*` and local `src/routes/api/*` handlers: secrets stay server-side, non-2xx handling is consistent, and no private env or technical ids leak to the browser.
 - `load` functions: server vs universal choice, use the provided `fetch`, no global fetch in `load`, `depends` where targeted invalidation is needed, real errors via `error(status, ...)` instead of silent empty data.
 - Mutations: use form actions plus `use:enhance` where appropriate, refresh with `invalidate`/`invalidateAll` or returned fresh data, parent-owned sequencing/cancellation for ordered requests.
 - Types: flag `any`/`as any` on API responses, dishonest optional/nullable/omitted fields, and unsafe form action payloads.

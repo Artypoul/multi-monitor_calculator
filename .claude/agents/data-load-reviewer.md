@@ -1,6 +1,6 @@
 ---
 name: data-load-reviewer
-description: После правок слоя данных (load, form actions, src/lib/api, hooks) — отчёт по fetch-обёртке, invalidate, типам, 401/403. По умолчанию без правок в репозитории.
+description: После правок слоя данных (load, form actions, src/routes/api, src/lib/server) — отчёт по server-side bridge, invalidate и типам. По умолчанию без правок в репозитории.
 tools: Read, Glob, Grep
 ---
 

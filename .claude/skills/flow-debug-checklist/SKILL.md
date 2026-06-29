@@ -1,7 +1,7 @@
 ---
 name: flow-debug-checklist
-description: Чек-лист перед PR на любую flow-фичу (auth, onboarding, чекаут, навигация после мутации). Лечит class of bugs «smoke прошёл, прод сломан» — когда тест-setup отличается от реального пользовательского пути.
-when_to_use: sign-in, sign-up, onboarding, checkout, route guards (+layout.server.ts / hooks.server.ts), token restore, редирект после form action или goto()
+description: Чек-лист перед PR на flow-фичу с несколькими состояниями, шагами или редиректами. Лечит class of bugs «smoke прошёл, прод сломан» — когда тест-setup отличается от реального пользовательского пути.
+when_to_use: multistep flow, route guard, redirect после form action, goto(), post-submit navigation, сложный SSR/client transition
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Bash
 ---
@@ -27,7 +27,7 @@ allowed-tools: Read Glob Grep Bash
 
 ```bash
 curl -s -H "Authorization: Bearer $TOK" -H "Accept: application/json" \
-  https://api-v2.gigma.ru/api/<endpoint> | jq '.'
+  <local-or-remote-endpoint> | jq '.'
 ```
 
 Сравнить три варианта: без токена (публичный?), с токеном свежесозданного юзера (new user), с токеном уже-завершившего флоу (returning user).

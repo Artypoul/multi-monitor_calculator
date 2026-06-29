@@ -1,6 +1,6 @@
 ---
 name: pr-finalize
-description: Финализация PR для repair calculator frontend — history.md, svelte-check, lint, vitest, gh pr create --base master. Не мерджит без явного «да». Подписка на активность PR после create, если доступен MCP GitHub.
+description: Финализация PR для multi-monitor_calculator frontend — docs/README, svelte-check, lint, vitest, gh pr create --base master. Не мерджит без явного «да». Подписка на активность PR после create, если доступен MCP GitHub.
 when_to_use: код готов, нужен PR в master и при необходимости обновление docs
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Bash Write
@@ -40,10 +40,10 @@ npm run test:e2e 2>&1     # playwright
 
 При красном check / lint / test — **остановись**, верни лог пользователю; не коммить без явного «игнорируй».
 
-## history.md
+## Docs
 
-- Обнови **верх файла**: дата «Последнее обновление», TL;DR при необходимости, **строка таблицы PR** если это PR-релиз (см. AGENTS.md).
-- Отдельный мини-PR только на docs — допустим по AGENTS.md (`docs(history.md): …`).
+- Обнови **`docs/`** и/или **`README.md`**, если менялись пользовательский сценарий, mapping, setup или repo-правила.
+- Отдельный мини-PR только на docs — допустим, если продуктовый код уже готов.
 
 ## Codex / retro (напоминание)
 
@@ -71,7 +71,7 @@ gh pr create --base master --title "…" --body "$(cat <<'MD'
 - [ ] (опционально) npm run test:e2e
 - [ ] Responsive: ≤1024 / ≤768 / ≤480 — если менялся UI
 
-## history.md
+## Docs
 - …
 
 MD

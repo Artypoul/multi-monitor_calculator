@@ -21,7 +21,7 @@ developer_instructions = """
 ### 10 пунктов чек-листа\r
 \r
 1. Routes / pages / components — что уже есть, не плодить дубликаты\r
-2. Слой данных (`load` / `src/lib/api`) — какие endpoint'ы подключены\r
+2. Слой данных (`load` / `src/routes/api` / `src/lib/server`) — какие endpoint'ы подключены\r
 3. Backend contract — `curl`'ом, **не на доверии**\r
 4. Loading state\r
 5. Empty state (включая `exists: false` — не ошибка!)\r
@@ -35,9 +35,9 @@ developer_instructions = """
 \r
 Различать `undefined` (не трогаем) vs `null` (явная очистка) vs `""` (черновик?). Особенно `0` и `false` — валидные значения, **нельзя терять** при фильтрации falsy.\r
 \r
-### Specialization-aware UI\r
+### Repo-aware UI\r
 \r
-Активная специализация (коды `AGENCY` / `CONTRACTOR` / `VENUE` / `ARTIST` / `PRIVATE_ORGANIZER`, см. `src/lib/types/index.ts`; `MUSICIAN` не существует, «музыкант» = `ARTIST`) влияет на меню, профиль, title, quick actions. Источник — серверная сессия (`active_specialization_id`), не хардкод по месту. Канон — `specialization`, не `participant_type`.\r
+Для этого репозитория проверять другое: Gigma-токен и технические mapping-данные не должны уходить в браузер, а новый repair UI должен оставаться в visual language текущего SMUI-проекта.\r
 \r
 ### Frontend safety check в self-review\r
 \r

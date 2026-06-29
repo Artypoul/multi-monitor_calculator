@@ -1,6 +1,6 @@
 ---
 name: pr-finalize
-description: Use when code is ready and the user asks to finalize a PR. Updates `history.md`, runs checks, commits/pushes/creates a PR to `master`, and never merges without explicit approval.
+description: Use when code is ready and the user asks to finalize a PR. Updates docs/README when relevant, runs checks, commits/pushes/creates a PR to `master`, and never merges without explicit approval.
 ---
 
 # PR Finalize
@@ -27,8 +27,7 @@ Pre-flight:
 
 History:
 
-- Update the top of `history.md` after meaningful work.
-- Include last update date, TL;DR when needed, and PR table row for PR releases.
+- Update `docs/` and/or `README.md` when user flow, mapping, setup, or repo rules changed meaningfully.
 
 Commit and PR:
 

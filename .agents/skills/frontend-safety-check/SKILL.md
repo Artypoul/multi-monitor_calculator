@@ -26,12 +26,12 @@ allowed-tools: Read Glob Grep Bash
 Перед `git push` пройти каждый:
 
 1. **Routes / pages / components.** Что уже есть в `src/routes/*` и `src/lib/components/*`. Не плодить дубликаты экранов и виджетов.
-2. **Слой данных.** Какие `load` / endpoints в `src/lib/api/*` уже подключены. Не дублировать загрузку, переиспользовать обёртку `client.ts`.
+2. **Слой данных.** Какие `load` / endpoints в `src/routes/api/*` и `src/lib/server/*` уже подключены. Не дублировать server-side bridge.
 3. **Backend contract — curl'ом.** Для каждого endpoint, который трогаешь:
    ```bash
    curl -s -H "Authorization: Bearer $TOK" \
      -H "Accept: application/json" \
-     "https://api-v2.gigma.ru/api/<endpoint>" | python -m json.tool
+     "<local-or-remote-endpoint>" | python -m json.tool
    ```
    Сверить **все** поля response: какие обязательные, optional, nullable, что значит omitted.
 4. **Loading state.** Что юзер видит, пока данные не пришли. Skeleton, спиннер, «Загружаем…». В SvelteKit с `await` в `load` — через `{#await}` или серверный рендер после settle. Не пустой экран.
@@ -109,23 +109,13 @@ await update(body);
 
 Не делать новый визуальный паттерн, если в `src/lib/components` уже есть похожий. По мере роста проекта держать единый набор примитивов (карточки, формы, layout view-страниц, topbar, sidebar, кнопки) и общие CSS-токены. Профиль (организатор / прокатчик / музыкант) должен выглядеть как часть **единой** Gigma, а не отдельная дизайн-система.
 
-## Specialization-aware UI
+## Repo-aware UI
 
-Активная специализация **должна влиять** на: меню/sidebar, поля профиля, title/labels, quick actions на дашборде.
+Для `multi-monitor_calculator` применять этот раздел так:
 
-**Не хардкодить** by-code в каждом месте. Источник активной специализации — серверная сессия (`active_specialization_id`). Минимальный паттерн:
-
-```ts
-// Коды: AGENCY | CONTRACTOR | VENUE | ARTIST | PRIVATE_ORGANIZER
-//   (src/lib/types/index.ts; «музыкант» = ARTIST, кода MUSICIAN нет).
-// В сессии активная специализация — это active_specialization_id (UUID).
-// Каталог { id, code, name } появится в GET /specializations (TODO в specialization.ts).
-// Псевдокод (переменной-каталога в коде пока НЕТ):
-//   const code = catalog.find(s => s.id === active_specialization_id)?.code;
-const profileForm = PROFILE_FORMS[code] ?? PROFILE_FORMS.DEFAULT; // code — из каталога
-```
-
-Нейминг (`specialization` vs `participant_type`) и точные коды/endpoints — **свериться с бэком curl'ом**, не на веру. Канон нового фронта — `specialization`.
+- Для repair estimate flow: токен Gigma и внешние вызовы остаются server-side, в UI не показывать technical ids и backend-термины.
+- Для legacy monitor UI: переиспользовать существующие SMUI/theme-паттерны, а не приносить новый visual language.
+- Если ниже или в соседних skill-примерах встречаются auth/onboarding/specialization-кейсы, трактуй их как **шаблон проверки flow-рисков**, а не как буквальный контракт этого продукта.
 
 ## Профили специализаций (когда дойдёт до фичи)
 

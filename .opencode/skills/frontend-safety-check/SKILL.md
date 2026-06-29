@@ -1,6 +1,6 @@
 ---
 name: frontend-safety-check
-description: Use before any frontend PR, especially new pages, forms, API calls, profile/specialization work, payload changes, or redirects after mutation. Checks backend contract, UI states, payload safety, and component reuse.
+description: Use before any frontend PR, especially new pages, forms, local endpoint changes, payload changes, or redirects after mutation. Checks backend contract, UI states, payload safety, and component reuse.
 ---
 
 # Frontend Safety Check
@@ -19,7 +19,7 @@ Only then open the PR.
 Checklist:
 
 1. Routes, pages, and components: inspect existing `src/routes` and `src/lib/components`; do not duplicate screens or widgets.
-2. Data layer: inspect existing `load` functions and `src/lib/api`; reuse `client.ts`.
+2. Data layer: inspect existing `load` functions, local `src/routes/api`, and `src/lib/server`; reuse the existing server-side bridge.
 3. Backend contract: verify endpoint response shapes where possible, including required, optional, nullable, and omitted fields.
 4. Loading state: no blank screen while data is pending.
 5. Empty state: empty data or `exists: false` is handled as normal, not as an error.
@@ -36,12 +36,11 @@ Payload safety rules:
 - Field temporarily not loaded -> do not send it as `null`.
 - Do not filter out valid falsy values such as `0` or `false`.
 
-Specialization-aware UI:
+Repo-aware UI:
 
-- Active specialization affects menu/sidebar, profile fields, titles, and quick actions.
-- New code uses `specialization`, not `participant_type`.
-- Do not hardcode specialization code logic in scattered places.
-- Verify exact codes and endpoints against backend contract.
+- For repair estimate flow, keep Gigma token usage and technical mapping on the server side.
+- Do not surface backend ids or technical terms in user-facing UI.
+- Keep new UI inside the current SMUI/theme visual language instead of transplanting an external redesign literally.
 
 Self-review block for PRs:
 

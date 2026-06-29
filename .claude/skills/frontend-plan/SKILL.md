@@ -1,6 +1,6 @@
 ---
 name: frontend-plan
-description: План фронтенд-задачи для repair calculator (SvelteKit/Vite/TS) до написания кода. Читает CLAUDE.md, history.md (если есть) и git. Используй перед фичей, рефакторингом или «что делать дальше».
+description: План фронтенд-задачи для multi-monitor_calculator (SvelteKit/Vite/TS) до написания кода. Читает CLAUDE.md, AGENTS.md и git. Используй перед фичей, рефакторингом или «что делать дальше».
 when_to_use: новая задача, крупный UI, интеграция с API, эпик
 disable-model-invocation: true
 allowed-tools: Read Glob Grep Bash
@@ -26,10 +26,10 @@ gh pr list --base master --state open --limit 15 2>/dev/null || echo "(gh нед
 
 ## Обязательные шаги
 
-1. Прочитай **`CLAUDE.md`** в корне — стек, PR workflow, responsive, history, affordance-matrix, form save scope.
-2. Прочитай верх **`history.md`** (если есть) — TL;DR + последние строки таблицы PR, чтобы не дублировать незамерженную работу.
-3. **Grep** по `src/` по ключевым словам фичи (компоненты `.svelte`, маршруты в `src/routes`, endpoints в `src/lib/api`) — не плодить дубли.
-4. Если контракт API неясен — сверь с существующими обёртками в `src/lib/api/` и с владельцем API; не доверять описанию на словах.
+1. Прочитай **`CLAUDE.md`** и **`AGENTS.md`** в корне — стек, PR workflow, responsive, affordance-matrix, form save scope.
+2. Посмотри свежие документы в **`docs/`** и актуальный **`README.md`**, если задача касается пользовательского сценария, mapping или setup.
+3. **Grep** по `src/` по ключевым словам фичи (компоненты `.svelte`, маршруты в `src/routes`, endpoints в `src/routes/api`, server helpers в `src/lib/server`) — не плодить дубли.
+4. Если контракт API неясен — сверь с существующими server-side helpers и local endpoints; не доверять описанию на словах.
 
 ## Формат ответа (согласуй с пользователем)
 
@@ -38,7 +38,7 @@ gh pr list --base master --state open --limit 15 2>/dev/null || echo "(gh нед
 
 **Скоуп:** одна задача; без несвязанного рефакторинга.
 
-**Что трогаем:** routes (`src/routes/**`) / api (`src/lib/api`) / stores (`src/lib/stores`) / components (`src/lib/components`) / hooks (`hooks.server.ts`) / tests
+**Что трогаем:** routes (`src/routes/**`) / api (`src/routes/api/**`, `src/lib/server/**`) / stores (`src/lib/stores`) / components (`src/lib/components`) / tests
 
 **Контракты UI:** маршруты, что в `load` vs form action, loading/error (`+error.svelte`), a11y (клавиатура, роли)
 
@@ -50,7 +50,7 @@ gh pr list --base master --state open --limit 15 2>/dev/null || echo "(gh нед
 
 **Намеренно не делаем:** …
 
-**DoD:** `npm run check` (svelte-check) · lint · vitest (и e2e если трогали критичный flow) · history.md при осмысленном шаге · PR base = **master**
+**DoD:** `npm run check` (svelte-check) · lint · vitest (и e2e если трогали критичный flow) · docs/README при осмысленном шаге · PR base = **master**
 
 **После кода:** какие skills дернуть (`/data-load-review`, `/affordance-review`, `/pr-finalize`).
 ```

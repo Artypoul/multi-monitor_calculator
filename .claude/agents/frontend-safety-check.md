@@ -23,7 +23,7 @@ description: Зеркало skill'а frontend-safety-check для чтения �
 ### 10 пунктов чек-листа
 
 1. Routes / pages / components — что уже есть, не плодить дубликаты
-2. Слой данных (`load` / `src/lib/api`) — какие endpoint'ы подключены
+2. Слой данных (`load` / `src/routes/api` / `src/lib/server`) — какие endpoint'ы подключены
 3. Backend contract — `curl`'ом, **не на доверии**
 4. Loading state
 5. Empty state (включая `exists: false` — не ошибка!)
@@ -37,9 +37,9 @@ description: Зеркало skill'а frontend-safety-check для чтения �
 
 Различать `undefined` (не трогаем) vs `null` (явная очистка) vs `""` (черновик?). Особенно `0` и `false` — валидные значения, **нельзя терять** при фильтрации falsy.
 
-### Specialization-aware UI
+### Repo-aware UI
 
-Активная специализация (коды `AGENCY` / `CONTRACTOR` / `VENUE` / `ARTIST` / `PRIVATE_ORGANIZER`, см. `src/lib/types/index.ts`; `MUSICIAN` не существует, «музыкант» = `ARTIST`) влияет на меню, профиль, title, quick actions. Источник — серверная сессия (`active_specialization_id`), не хардкод по месту. Канон — `specialization`, не `participant_type`.
+Для этого репозитория проверять другое: Gigma-токен и технические mapping-данные не должны уходить в браузер, а новый repair UI должен оставаться в visual language текущего SMUI-проекта.
 
 ### Frontend safety check в self-review
 

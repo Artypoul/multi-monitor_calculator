@@ -1,7 +1,7 @@
 ---
 name: data-load-review
-description: Ревью слоя данных в repair calculator (SvelteKit) — load-функции, form actions, fetch-обёртка, invalidate/depends, типы ответов, гонки запросов. Не правит код без явного запроса; выдаёт отчёт и приоритеты.
-when_to_use: после правок src/lib/api/, load (+page.ts/+page.server.ts), form actions, hooks.server.ts, логина, кэша/инвалидации
+description: Ревью слоя данных в multi-monitor_calculator (SvelteKit) — load-функции, local endpoints, server-side API bridge, invalidate/depends, типы ответов, гонки запросов. Не правит код без явного запроса; выдаёт отчёт и приоритеты.
+when_to_use: после правок src/routes/api/, src/lib/server/, load (+page.ts/+page.server.ts), form actions, кэша/инвалидации
 disable-model-invocation: true
 allowed-tools: Read Glob Grep
 ---
@@ -12,10 +12,10 @@ allowed-tools: Read Glob Grep
 
 ## Что проверить
 
-1. **`src/lib/api/client.ts`** (обёртка fetch)
-   - Bearer-токен берётся из серверной сессии (`locals` / cookie), **не** из localStorage.
+1. **`src/lib/server/*` и `src/routes/api/*`** (server-side bridge)
+   - Секреты и токены живут только server-side, **не** в browser storage.
    - Единая обработка ошибок: не-2xx → понятная ошибка; тело ошибки не глотать.
-   - 401 → один согласованный путь (разлогин / редирект на `/sign-in`) на весь слой, не дубль в каждом вызове.
+   - Локальный endpoint не должен протаскивать technical ids или private env в клиент.
 
 2. **`load`-функции (`+page.ts` / `+page.server.ts`)**
    - Server vs universal выбран осознанно: секреты/cookie → только `+page.server.ts`.

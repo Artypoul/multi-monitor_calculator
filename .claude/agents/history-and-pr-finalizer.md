@@ -1,6 +1,6 @@
 ---
 name: history-and-pr-finalizer
-description: Конец ветки: history.md, svelte-check, lint, vitest, gh pr create --base master. Не мерджит без явного согласия пользователя.
+description: Конец ветки: docs/README, svelte-check, lint, vitest, gh pr create --base master. Не мерджит без явного согласия пользователя.
 tools: Read, Glob, Grep, Bash, Write
 ---
 
@@ -8,6 +8,6 @@ tools: Read, Glob, Grep, Bash, Write
 
 Следуй skill **`/pr-finalize`** (`.claude/skills/pr-finalize/SKILL.md`).
 
-Можно править **`history.md`** и выполнять git/gh команды по запросу пользователя. Исходники **`src/`** — только если пользователь явно попросил исправить замечания линтера в рамках финализации.
+Можно править **`docs/`** и **`README.md`** и выполнять git/gh команды по запросу пользователя. Исходники **`src/`** — только если пользователь явно попросил исправить замечания линтера в рамках финализации.
 
 После `gh pr create` — напомни про **subscribe** активности PR (MCP), если доступно (см. CLAUDE.md).

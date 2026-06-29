@@ -9,10 +9,10 @@ You do not write code in this skill. Produce a plan for a SvelteKit/Vite/TypeScr
 
 Read and use:
 
-- `CLAUDE.md` and `AGENTS.md` for stack, PR workflow, responsive rules, history policy, affordance matrix, and form save scope.
-- The top of `history.md`, if present, to avoid duplicating active or recently merged work.
+- `CLAUDE.md` and `AGENTS.md` for stack, PR workflow, responsive rules, affordance matrix, and form save scope.
+- Recent docs in `docs/` and the current `README.md` when the task affects user flow, mapping, or setup.
 - `git status`, recent commits, and open PRs if available; prefer `gh pr list --base master --state open --limit 15` for duplicate-PR checks.
-- Existing code in `src/routes`, `src/lib/api`, `src/lib/stores`, `src/lib/components`, and related files found by grep.
+- Existing code in `src/routes`, `src/routes/api`, `src/lib/server`, `src/lib/stores`, `src/lib/components`, and related files found by grep.
 
 Required checks:
 
