@@ -1,38 +1,64 @@
-# create-svelte
+# Калькулятор ремонта
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
+SvelteKit MVP для предварительного расчета ремонта санузла через готовый headless-расчет.
 
-## Creating a project
+## Frontend user flow
 
-If you're seeing this, you've probably already done this step. Congrats!
+На главной странице перенесен пользовательский сценарий из `Pavel_Profi_redesign` без копирования визуального дизайна:
+
+- параметры квартиры и санузла;
+- расчет площадей по формулам оригинала;
+- выбор работ и материалов по категориям;
+- предварительная смета для пакета "Санузел под плитку";
+- график работ;
+- черновые и финишные материалы.
+
+Формулы, шаблоны квартир, категории и frontend-представления лежат в `src/lib/repairFlow.ts`.
+Backend, server endpoints, token handling и technical mapping в этом переносе не менялись.
+
+## Env
+
+Создайте `.env` локально и добавьте:
 
 ```bash
-# create a new project in the current directory
-npm create svelte@latest
-
-# create a new project in my-app
-npm create svelte@latest my-app
+GIGMA_APP_TOKEN=...
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Опционально можно переопределить базовый URL:
 
 ```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+GIGMA_API_URL=https://api.gigma.ru/api
 ```
 
-## Building
+`GIGMA_APP_TOKEN` читается только server-side кодом. Браузер отправляет запрос только в локальный route `POST /api/repair-estimate/calculate`.
 
-To create a production version of your app:
+## Mapping
+
+Mapping сценария `bathroom_tile` лежит в `src/lib/server/repairEstimateMapping.ts`.
+
+MVP отправляет в Gigma работы:
+
+- 34766 Грунтовка стен
+- 34770 Штукатурка стен под плитку, толщина 10
+- 34767 Грунтовка пола
+- 34777 Наливной пол, толщина 5
+- 34778 Укладка керамической плитки на стенах
+- 34780 Укладка керамической плитки на полу
+
+## Контрольный сценарий
+
+40 м² квартира, санузел 4 м², высота потолка 2.7 м, пакет "Санузел под плитку".
+
+Ожидаемый production API результат:
+
+- works_total: 81320.00
+- materials_total: 12843.00
+- total: 94163.00
+- warnings: []
+
+## Команды
 
 ```bash
+npm run check
 npm run build
 ```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
