@@ -42,6 +42,14 @@
 	};
 
 	type ContactPreference = 'phone' | 'whatsapp' | 'telegram';
+	type RepairZoneChoice = 'bathroom' | 'apartment' | 'room' | 'kitchen';
+
+	type RepairZoneOption = {
+		id: RepairZoneChoice;
+		label: string;
+		description: string;
+		quickEstimate: boolean;
+	};
 
 	type ClientDraft = {
 		name: string;
@@ -54,7 +62,34 @@
 	const HUMAN_ERROR = 'Не удалось рассчитать, попробуйте позже или оставьте заявку';
 	const SEPARATE_BATHROOM_MESSAGE =
 		'Для раздельного санузла предварительную смету лучше уточнить после заявки. Площади уже посчитаны, точная смета после замера.';
+	const REPAIR_ZONE_OPTIONS: RepairZoneOption[] = [
+		{
+			id: 'bathroom',
+			label: 'Санузел',
+			description: 'Быстрый расчет пакета под плитку',
+			quickEstimate: true,
+		},
+		{
+			id: 'apartment',
+			label: 'Вся квартира',
+			description: 'Расчет после уточнения состава работ',
+			quickEstimate: false,
+		},
+		{
+			id: 'room',
+			label: 'Комната',
+			description: 'Поможем собрать сценарий ремонта',
+			quickEstimate: false,
+		},
+		{
+			id: 'kitchen',
+			label: 'Кухня',
+			description: 'Уточним отделку и инженерные точки',
+			quickEstimate: false,
+		},
+	];
 
+	let selectedRepairZone: RepairZoneChoice = 'bathroom';
 	let clientName = '';
 	let clientPhone = '';
 	let objectAddress = '';
@@ -128,6 +163,10 @@
 			    ]
 			  : [];
 	$: bathroomPrimaryLabel = bathroomType === 'separate' ? 'Туалет, м²' : 'Санузел, м²';
+	$: selectedRepairOption =
+		REPAIR_ZONE_OPTIONS.find((option) => option.id === selectedRepairZone) ??
+		REPAIR_ZONE_OPTIONS[0];
+	$: isBathroomFlow = selectedRepairZone === 'bathroom';
 	$: isSeparateEstimateBlocked =
 		bathroomType === 'separate' && estimateMessage === SEPARATE_BATHROOM_MESSAGE;
 
@@ -202,7 +241,37 @@
 		leadMessage = '';
 	}
 
+	function selectRepairZone(zone: RepairZoneChoice) {
+		selectedRepairZone = zone;
+		estimateResult = null;
+		estimateMessage = '';
+		areaMessage = '';
+		leadPrepared = false;
+		leadMessage = '';
+		leadNoteVisible = zone !== 'bathroom';
+	}
+
+	function handlePrimaryAction() {
+		if (!isBathroomFlow) {
+			showLeadRequest();
+			return;
+		}
+
+		void calculateEstimate();
+	}
+
+	function showLeadRequest() {
+		leadNoteVisible = true;
+		leadPrepared = false;
+		leadMessage = '';
+	}
+
 	async function calculateEstimate() {
+		if (!isBathroomFlow) {
+			showLeadRequest();
+			return;
+		}
+
 		if (!areaCalculation) {
 			areaMessage = areaErrorText;
 			return;
@@ -350,87 +419,39 @@
 						<span class="flow-kicker">1 из 2 · расчет без звонка</span>
 						<h3>Расскажите об объекте</h3>
 						<p>
-							Для предварительной стоимости нужны только площади. Контакты можно оставить после
-							расчета, когда уже виден ориентир по цене.
+							Выберите тип ремонта. Для санузла уже работает быстрый расчет, по остальным вариантам
+							можно оставить заявку на уточнение.
 						</p>
 					</div>
 
 					<div class="scenario-cards" aria-label="Выбранный сценарий ремонта">
-						<div class="scenario-card scenario-card--active">
-							<small>Что ремонтируем</small>
-							<strong>Санузел</strong>
-						</div>
-						<div class="scenario-card scenario-card--active">
-							<small>Пакет</small>
-							<strong>Санузел под плитку</strong>
-						</div>
-						<div class="scenario-card">
-							<small>Формат</small>
-							<strong>Предварительный расчет</strong>
-						</div>
+						{#each REPAIR_ZONE_OPTIONS as option}
+							<button
+								type="button"
+								class:scenario-card--active={selectedRepairZone === option.id}
+								class="scenario-card"
+								on:click={() => selectRepairZone(option.id)}
+							>
+								<small>{option.quickEstimate ? 'Быстрый расчет' : 'Заявка'}</small>
+								<strong>{option.label}</strong>
+								<span>{option.description}</span>
+							</button>
+						{/each}
 					</div>
 
-					<div class="field-grid quick-field-grid">
-						<TextField
-							bind:value={totalArea}
-							input$max="1000"
-							input$min="1"
-							input$step="0.1"
-							label="Общая площадь квартиры"
-							on:input={invalidateEstimate}
-							required
-							style="width:100%;"
-							suffix="м²"
-							type="number"
-							variant="filled"
-						/>
+					{#if isBathroomFlow}
+						<div class="package-note">
+							<strong>Пакет:</strong>
+							<span>Санузел под плитку</span>
+						</div>
 
-						<TextField
-							bind:value={ceilingHeight}
-							input$max="6"
-							input$min="2"
-							input$step="0.01"
-							label="Высота потолка"
-							on:input={invalidateEstimate}
-							required
-							style="width:100%;"
-							suffix="м"
-							type="number"
-							variant="filled"
-						/>
-
-						<Select
-							bind:value={bathroomType}
-							label="Тип санузла"
-							on:MDCSelect:change={handleBathroomTypeChange}
-							style="width:100%;"
-							variant="filled"
-						>
-							<Option value="combined">Совмещенный</Option>
-							<Option value="separate">Раздельный</Option>
-						</Select>
-
-						<TextField
-							bind:value={bathroomPrimaryArea}
-							input$max="1000"
-							input$min="0.1"
-							input$step="0.1"
-							label={bathroomPrimaryLabel}
-							on:input={invalidateEstimate}
-							required
-							style="width:100%;"
-							suffix="м²"
-							type="number"
-							variant="filled"
-						/>
-
-						{#if bathroomType === 'separate'}
+						<div class="field-grid quick-field-grid">
 							<TextField
-								bind:value={bathroomSecondaryArea}
+								bind:value={totalArea}
 								input$max="1000"
-								input$min="0.1"
+								input$min="1"
 								input$step="0.1"
-								label="Ванная, м²"
+								label="Общая площадь квартиры"
 								on:input={invalidateEstimate}
 								required
 								style="width:100%;"
@@ -438,8 +459,73 @@
 								type="number"
 								variant="filled"
 							/>
-						{/if}
-					</div>
+
+							<TextField
+								bind:value={ceilingHeight}
+								input$max="6"
+								input$min="2"
+								input$step="0.01"
+								label="Высота потолка"
+								on:input={invalidateEstimate}
+								required
+								style="width:100%;"
+								suffix="м"
+								type="number"
+								variant="filled"
+							/>
+
+							<Select
+								bind:value={bathroomType}
+								label="Тип санузла"
+								on:MDCSelect:change={handleBathroomTypeChange}
+								style="width:100%;"
+								variant="filled"
+							>
+								<Option value="combined">Совмещенный</Option>
+								<Option value="separate">Раздельный</Option>
+							</Select>
+
+							<TextField
+								bind:value={bathroomPrimaryArea}
+								input$max="1000"
+								input$min="0.1"
+								input$step="0.1"
+								label={bathroomPrimaryLabel}
+								on:input={invalidateEstimate}
+								required
+								style="width:100%;"
+								suffix="м²"
+								type="number"
+								variant="filled"
+							/>
+
+							{#if bathroomType === 'separate'}
+								<TextField
+									bind:value={bathroomSecondaryArea}
+									input$max="1000"
+									input$min="0.1"
+									input$step="0.1"
+									label="Ванная, м²"
+									on:input={invalidateEstimate}
+									required
+									style="width:100%;"
+									suffix="м²"
+									type="number"
+									variant="filled"
+								/>
+							{/if}
+						</div>
+					{:else}
+						<Paper class="state-paper zone-request-paper">
+							<Content>
+								<h4>{selectedRepairOption.label}</h4>
+								<p>
+									Для этого варианта лучше сначала уточнить площадь, состояние объекта и состав
+									работ. Оставьте контакты, и менеджер подготовит расчет по вашему сценарию.
+								</p>
+							</Content>
+						</Paper>
+					{/if}
 
 					{#if areaMessage}
 						<p class="form-message error" role="alert">{areaMessage}</p>
@@ -447,17 +533,27 @@
 
 					<div class="actions-row primary-actions">
 						<Button
-							disabled={isSubmitting || !areaCalculation}
+							disabled={isBathroomFlow && (isSubmitting || !areaCalculation)}
 							variant="raised"
-							on:click={calculateEstimate}
+							on:click={handlePrimaryAction}
 						>
-							<Icon class="material-icons">request_quote</Icon>
-							<Label>{isSubmitting ? 'Считаем...' : 'Рассчитать стоимость'}</Label>
+							<Icon class="material-icons">{isBathroomFlow ? 'request_quote' : 'campaign'}</Icon>
+							<Label>
+								{#if isBathroomFlow}
+									{isSubmitting ? 'Считаем...' : 'Рассчитать стоимость'}
+								{:else}
+									Оставить заявку на расчет
+								{/if}
+							</Label>
 						</Button>
-						<span class="cta-note">Точная смета после замера</span>
+						<span class="cta-note">
+							{isBathroomFlow
+								? 'Точная смета после замера'
+								: 'Менеджер уточнит детали и перезвонит'}
+						</span>
 					</div>
 
-					{#if areaErrorText}
+					{#if isBathroomFlow && areaErrorText}
 						<p class="form-message error" role="alert">{areaErrorText}</p>
 					{/if}
 				</Content>
@@ -468,31 +564,36 @@
 					<div class="side-section">
 						<h4>Что уже выбрано</h4>
 						<ul class="mini-checklist">
-							<li><span>✓</span> Санузел</li>
-							<li><span>✓</span> Пакет под плитку</li>
-							<li><span>✓</span> Предварительная смета</li>
-						</ul>
-					</div>
-
-					<div class="side-section">
-						<h4>Параметры</h4>
-						<ul class="data-list">
+							<li><span>✓</span> {selectedRepairOption.label}</li>
+							<li><span>✓</span> {isBathroomFlow ? 'Пакет под плитку' : 'Сценарий уточним'}</li>
 							<li>
-								<span>Квартира</span>
-								<strong>{formatAreaValue(totalArea)}</strong>
-							</li>
-							<li>
-								<span>Потолок</span>
-								<strong>{String(ceilingHeight).replace('.', ',')} м</strong>
-							</li>
-							<li>
-								<span>Санузел</span>
-								<strong>{formatAreaValue(bathroomPrimaryArea)}</strong>
+								<span>✓</span>
+								{isBathroomFlow ? 'Предварительная смета' : 'Заявка на расчет'}
 							</li>
 						</ul>
 					</div>
 
-					{#if areaCalculation}
+					{#if isBathroomFlow}
+						<div class="side-section">
+							<h4>Параметры</h4>
+							<ul class="data-list">
+								<li>
+									<span>Квартира</span>
+									<strong>{formatAreaValue(totalArea)}</strong>
+								</li>
+								<li>
+									<span>Потолок</span>
+									<strong>{String(ceilingHeight).replace('.', ',')} м</strong>
+								</li>
+								<li>
+									<span>Санузел</span>
+									<strong>{formatAreaValue(bathroomPrimaryArea)}</strong>
+								</li>
+							</ul>
+						</div>
+					{/if}
+
+					{#if isBathroomFlow && areaCalculation}
 						<div class="side-section">
 							<h4>Ключевые площади</h4>
 							<ul class="data-list">
@@ -515,19 +616,31 @@
 			</Paper>
 		</div>
 
-		{#if isSubmitting || estimateResult || estimateMessage}
+		{#if isSubmitting || estimateResult || estimateMessage || !isBathroomFlow}
 			<section class="result-zone" aria-live="polite">
 				<div class="result-header">
 					<span class="flow-kicker">2 из 2 · результат</span>
-					<h3>Предварительная смета</h3>
+					<h3>{isBathroomFlow ? 'Предварительная смета' : 'Заявка на расчет'}</h3>
 					<p>
-						{isSeparateEstimateBlocked
-							? 'Площади рассчитаны. Денежную смету для раздельного санузла уточним после заявки.'
-							: 'Расчет доступен для пакета "Санузел под плитку". Точная смета после замера.'}
+						{#if !isBathroomFlow}
+							Вы выбрали "{selectedRepairOption.label}". Оставьте контакты, чтобы менеджер уточнил
+							детали и подготовил расчет.
+						{:else if isSeparateEstimateBlocked}
+							Площади рассчитаны. Денежную смету для раздельного санузла уточним после заявки.
+						{:else}
+							Расчет доступен для пакета "Санузел под плитку". Точная смета после замера.
+						{/if}
 					</p>
 				</div>
 
-				{#if isSubmitting}
+				{#if !isBathroomFlow}
+					<Paper class="state-paper">
+						<Content>
+							<h4>{selectedRepairOption.label}</h4>
+							<p>Быстрый онлайн-расчет для этого варианта подключим отдельным сценарием.</p>
+						</Content>
+					</Paper>
+				{:else if isSubmitting}
 					<Paper class="state-paper">
 						<Content>
 							<h4>Считаем предварительную стоимость</h4>
@@ -701,89 +814,91 @@
 					</Paper>
 				{/if}
 
-				<div class="details-stack">
-					{#if areaCalculation}
-						<details class="details-panel">
-							<summary>Показать расчетные площади</summary>
-							<div class="summary-grid">
-								{#each areaSummaryRows as row}
-									<Paper class="metric-paper">
-										<Content>
-											<small>{row.label}</small>
-											<strong>{row.value}</strong>
-										</Content>
-									</Paper>
-								{/each}
-							</div>
-						</details>
-					{/if}
-
-					{#if scheduleStages.length > 0}
-						<details class="details-panel">
-							<summary>Показать ориентировочный график</summary>
-							<Paper class="state-paper">
-								<Content>
-									<h4>Ориентир по длительности</h4>
-									<p><strong>{totalScheduleDays} дн.</strong></p>
-								</Content>
-							</Paper>
-
-							<ol class="timeline">
-								{#each scheduleStages as stage, index}
-									<li>
-										<Paper class="detail-paper">
+				{#if isBathroomFlow}
+					<div class="details-stack">
+						{#if areaCalculation}
+							<details class="details-panel">
+								<summary>Показать расчетные площади</summary>
+								<div class="summary-grid">
+									{#each areaSummaryRows as row}
+										<Paper class="metric-paper">
 											<Content>
-												<h4>{index + 1}. {stage.title}</h4>
-												<p>{stage.details}</p>
-												<strong>{stage.days} дн.</strong>
-												<ul class="timeline-list">
-													{#each stage.items.slice(0, 5) as item}
-														<li>{item}</li>
-													{/each}
-												</ul>
+												<small>{row.label}</small>
+												<strong>{row.value}</strong>
 											</Content>
 										</Paper>
-									</li>
-								{/each}
-							</ol>
-						</details>
-					{/if}
+									{/each}
+								</div>
+							</details>
+						{/if}
 
-					{#if selectedOptions.length > 0}
-						<details class="details-panel">
-							<summary>Показать пакет работ и материалов</summary>
-							<div class="detail-columns">
-								<Paper class="detail-paper">
+						{#if scheduleStages.length > 0}
+							<details class="details-panel">
+								<summary>Показать ориентировочный график</summary>
+								<Paper class="state-paper">
 									<Content>
-										<h4>Пакет работ</h4>
-										<ul class="materials-list">
-											{#each selectedOptions as item}
-												<li>
-													<span>{item.label}</span>
-													<strong>{selectionMeta(item)}</strong>
-												</li>
-											{/each}
-										</ul>
+										<h4>Ориентир по длительности</h4>
+										<p><strong>{totalScheduleDays} дн.</strong></p>
 									</Content>
 								</Paper>
 
-								<Paper class="detail-paper">
-									<Content>
-										<h4>Материалы для обсуждения</h4>
-										<ul class="materials-list">
-											{#each [...materialsView.rough, ...materialsView.finish] as item}
-												<li>
-													<span>{item.label}</span>
-													<strong>{selectionMeta(item)}</strong>
-												</li>
-											{/each}
-										</ul>
-									</Content>
-								</Paper>
-							</div>
-						</details>
-					{/if}
-				</div>
+								<ol class="timeline">
+									{#each scheduleStages as stage, index}
+										<li>
+											<Paper class="detail-paper">
+												<Content>
+													<h4>{index + 1}. {stage.title}</h4>
+													<p>{stage.details}</p>
+													<strong>{stage.days} дн.</strong>
+													<ul class="timeline-list">
+														{#each stage.items.slice(0, 5) as item}
+															<li>{item}</li>
+														{/each}
+													</ul>
+												</Content>
+											</Paper>
+										</li>
+									{/each}
+								</ol>
+							</details>
+						{/if}
+
+						{#if selectedOptions.length > 0}
+							<details class="details-panel">
+								<summary>Показать пакет работ и материалов</summary>
+								<div class="detail-columns">
+									<Paper class="detail-paper">
+										<Content>
+											<h4>Пакет работ</h4>
+											<ul class="materials-list">
+												{#each selectedOptions as item}
+													<li>
+														<span>{item.label}</span>
+														<strong>{selectionMeta(item)}</strong>
+													</li>
+												{/each}
+											</ul>
+										</Content>
+									</Paper>
+
+									<Paper class="detail-paper">
+										<Content>
+											<h4>Материалы для обсуждения</h4>
+											<ul class="materials-list">
+												{#each [...materialsView.rough, ...materialsView.finish] as item}
+													<li>
+														<span>{item.label}</span>
+														<strong>{selectionMeta(item)}</strong>
+													</li>
+												{/each}
+											</ul>
+										</Content>
+									</Paper>
+								</div>
+							</details>
+						{/if}
+					</div>
+				{/if}
 			</section>
 		{/if}
 	</section>
@@ -907,10 +1022,21 @@
 		border: 1px solid rgba(103, 103, 120, 0.16);
 		border-radius: 6px;
 		padding: 0.8rem 0.9rem;
+		color: inherit;
+		cursor: pointer;
+		font: inherit;
+		text-align: left;
 	}
 
 	.scenario-card--active {
 		border-left: 4px solid #db3801;
+		background: rgba(219, 56, 1, 0.06);
+		box-shadow: 0 0 0 1px rgba(219, 56, 1, 0.12);
+	}
+
+	.scenario-card:focus-visible {
+		outline: 2px solid #db3801;
+		outline-offset: 2px;
 	}
 
 	.scenario-card small {
@@ -922,6 +1048,24 @@
 	.scenario-card strong {
 		display: block;
 		line-height: 1.25;
+	}
+
+	.scenario-card span {
+		display: block;
+		margin-top: 0.35rem;
+		color: rgba(0, 0, 0, 0.62);
+		font-size: 0.92rem;
+		line-height: 1.35;
+	}
+
+	.package-note {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem 0.6rem;
+		margin: 1rem 0;
+		padding: 0.8rem 0.9rem;
+		background: rgba(103, 103, 120, 0.08);
+		border-left: 4px solid #db3801;
 	}
 
 	.field-grid {
