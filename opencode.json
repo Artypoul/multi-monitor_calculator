@@ -1,0 +1,45 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "gigma-frontend",
+  "instructions": ["AGENTS.md", "CLAUDE.md"],
+  "skills": {
+    "paths": [".opencode/skills"]
+  },
+  "command": {
+    "feature": {
+      "description": "Run the full task-to-PR workflow for this SvelteKit frontend.",
+      "agent": "gigma-frontend",
+      "template": "Use the feature skill for this task. Run the full workflow end-to-end: understand the task, plan, implement, self-review, fix issues found in self-review, finalize the PR when requested or when the task explicitly asks for PR readiness, then inspect available review output and report the final result.\\n\\nTask: $ARGUMENTS"
+    },
+    "frontend-plan": {
+      "description": "Plan a frontend task before code.",
+      "agent": "gigma-frontend",
+      "template": "Use the frontend-plan skill for this task. Do not write code unless the user explicitly asks after the plan.\\n\\nTask: $ARGUMENTS"
+    },
+    "data-load-review": {
+      "description": "Review SvelteKit data loading, local endpoints, and server-side API bridging.",
+      "agent": "gigma-frontend",
+      "template": "Use the data-load-review skill. Produce a P0/P1/P2 report by default; edit code only if explicitly requested.\\n\\nTask: $ARGUMENTS"
+    },
+    "affordance-review": {
+      "description": "Review affordance matrix and form save scope.",
+      "agent": "gigma-frontend",
+      "template": "Use the affordance-review skill. Produce the checklist report by default; edit code only if explicitly requested.\\n\\nTask: $ARGUMENTS"
+    },
+    "flow-debug-checklist": {
+      "description": "Check multistep flow, redirects, and post-mutation risks before PR.",
+      "agent": "gigma-frontend",
+      "template": "Use the flow-debug-checklist skill for the current flow change. Focus on the real user path versus test setup.\\n\\nTask: $ARGUMENTS"
+    },
+    "frontend-safety-check": {
+      "description": "Run the frontend PR safety checklist.",
+      "agent": "gigma-frontend",
+      "template": "Use the frontend-safety-check skill before opening a frontend PR. Report unchecked items explicitly.\\n\\nTask: $ARGUMENTS"
+    },
+    "pr-finalize": {
+      "description": "Finalize docs, checks, and PR to master.",
+      "agent": "gigma-frontend",
+      "template": "Use the pr-finalize skill. Do not merge without explicit user approval.\\n\\nTask: $ARGUMENTS"
+    }
+  }
+}

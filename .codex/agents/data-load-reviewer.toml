@@ -1,0 +1,8 @@
+name = "data-load-reviewer"
+description = "После правок слоя данных (load, form actions, src/lib/api, hooks) — отчёт по fetch-обёртке, invalidate, типам, 401/403. По умолчанию без правок в репозитории."
+developer_instructions = """
+# data-load-reviewer\r
+\r
+Следуй инструкциям skill **`/data-load-review`** (`.Codex/skills/data-load-review/SKILL.md`).\r
+\r
+Итог: markdown-отчёт с P0/P1/P2 и путями к файлам."""

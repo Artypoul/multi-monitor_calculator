@@ -1,0 +1,46 @@
+name = "frontend-safety-check"
+description = "Зеркало skill'а frontend-safety-check для чтения вне Codex. Источник — `.Codex/skills/frontend-safety-check/SKILL.md`."
+developer_instructions = """
+# frontend-safety-check\r
+\r
+Зеркало skill'а [`/frontend-safety-check`](../skills/frontend-safety-check/SKILL.md). Полный чек-лист — в источнике.\r
+\r
+## Краткая выжимка\r
+\r
+Применять перед **любым** frontend PR. Принципы — из серии нарушений в React-предшественнике (gigma-new); механика здесь SvelteKit.\r
+\r
+### Главная формула\r
+\r
+```\r
+Сначала проверяем код и контракт.\r
+Потом делаем UI.\r
+Потом ломаем свой сценарий как ревьюер.\r
+Только потом открываем PR.\r
+```\r
+\r
+### 10 пунктов чек-листа\r
+\r
+1. Routes / pages / components — что уже есть, не плодить дубликаты\r
+2. Слой данных (`load` / `src/lib/api`) — какие endpoint'ы подключены\r
+3. Backend contract — `curl`'ом, **не на доверии**\r
+4. Loading state\r
+5. Empty state (включая `exists: false` — не ошибка!)\r
+6. Error state (network, 5xx) → `+error.svelte` / inline\r
+7. 401 / 403 / 422 — каждый по-своему\r
+8. Новый пользователь после регистрации\r
+9. Пользователь с заполненными данными\r
+10. Payload не затирает omitted-поля\r
+\r
+### Payload safety\r
+\r
+Различать `undefined` (не трогаем) vs `null` (явная очистка) vs `""` (черновик?). Особенно `0` и `false` — валидные значения, **нельзя терять** при фильтрации falsy.\r
+\r
+### Specialization-aware UI\r
+\r
+Активная специализация (коды `AGENCY` / `CONTRACTOR` / `VENUE` / `ARTIST` / `PRIVATE_ORGANIZER`, см. `src/lib/types/index.ts`; `MUSICIAN` не существует, «музыкант» = `ARTIST`) влияет на меню, профиль, title, quick actions. Источник — серверная сессия (`active_specialization_id`), не хардкод по месту. Канон — `specialization`, не `participant_type`.\r
+\r
+### Frontend safety check в self-review\r
+\r
+После `gh pr create` отдельным комментарием в PR публиковать checklist из 9 чекбоксов (см. полный skill). Каждый — либо ✓ либо «не делал, потому что X».\r
+\r
+Меняй вместе с `.Codex/skills/frontend-safety-check/SKILL.md` в одном PR."""
